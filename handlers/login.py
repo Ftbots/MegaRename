@@ -2,6 +2,7 @@ from pyrogram import filters
 from pyrogram.types import Message
 from mega import Mega
 from config import MEGA_CREDENTIALS
+from utils import listen  # Import the listen function
 
 mega = Mega()
 
@@ -9,10 +10,14 @@ def register_handlers(app):
     @app.on_message(filters.command("login") & filters.private)
     async def login(bot, message: Message):
         await message.reply("Please send your Mega email.")
-        email = (await bot.listen(message.chat.id)).text
+
+        # Use the custom listen function
+        email_message = await listen(message.chat.id, app)
+        email = email_message.text
 
         await message.reply("Now send your Mega password.")
-        password = (await bot.listen(message.chat.id)).text
+        password_message = await listen(message.chat.id, app)
+        password = password_message.text
 
         try:
             mega.login(email, password)
@@ -21,9 +26,3 @@ def register_handlers(app):
             await message.reply("Mega login successful!")
         except Exception as e:
             await message.reply(f"Login failed: {str(e)}")
-
-    @app.on_message(filters.command("logout") & filters.private)
-    async def logout(bot, message: Message):
-        MEGA_CREDENTIALS["email"] = None
-        MEGA_CREDENTIALS["password"] = None
-        await message.reply("You have been logged out of Mega.")
