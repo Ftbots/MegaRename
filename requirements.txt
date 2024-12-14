@@ -1,5 +1,5 @@
 pyrogram
-mega.py>=2.0.0
+mega.py==1.0.8
 TgCrypto
 tenacity>=8.2.2
 pycryptodome>=3.10.1
