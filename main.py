@@ -1,4 +1,3 @@
-import os
 from pyrogram import Client
 from config import BOT_TOKEN, API_ID, API_HASH
 from handlers import start, login, rename
@@ -12,6 +11,4 @@ login.register_handlers(app)
 rename.register_handlers(app)
 
 if __name__ == "__main__":
-    # Run the app on port specified by Koyeb
-    port = int(os.environ.get("PORT", 8000))  # Default to 8000 if not set
-    app.run(host="0.0.0.0", port=port)
+    app.run()  # No need for host and port arguments
