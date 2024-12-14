@@ -2,7 +2,8 @@ from pyrogram import filters
 from pyrogram.types import Message
 from mega import Mega
 from config import MEGA_CREDENTIALS
-from utils import listen  # Import the listen function
+from utils import listen
+import logging
 
 def register_handlers(app):
     @app.on_message(filters.command("rename") & filters.private)
@@ -28,4 +29,5 @@ def register_handlers(app):
 
             await message.reply(f"File renamed successfully to {new_name}!")
         except Exception as e:
+            logging.error(f"Rename failed: {str(e)}")  # Log the error
             await message.reply(f"Rename failed: {str(e)}")
