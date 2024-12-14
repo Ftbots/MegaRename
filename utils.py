@@ -8,11 +8,11 @@ async def listen(chat_id, app: Client, timeout=60):
     async def handler(client, message):
         if not future.done():
             future.set_result(message)
-        # Remove the handler to avoid conflict in future calls
-        await app.remove_handler(handler, group=0)
+        await app.remove_handler(handler)
 
     try:
         # Wait for user's input with a timeout
         return await asyncio.wait_for(future, timeout)
     except asyncio.TimeoutError:
+        logging.error(f"Timeout: No response received within {timeout} seconds.")  # Log timeout error
         raise Exception("Timeout: No response received.")
