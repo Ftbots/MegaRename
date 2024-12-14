@@ -4,6 +4,7 @@ from aiohttp import web
 from pyrogram import Client
 from config import BOT_TOKEN, API_ID, API_HASH
 from handlers import start, login, rename
+import os
 
 # Enable logging for better error tracking
 logging.basicConfig(level=logging.DEBUG)
