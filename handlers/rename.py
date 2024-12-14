@@ -2,6 +2,7 @@ from pyrogram import filters
 from pyrogram.types import Message
 from mega import Mega
 from config import MEGA_CREDENTIALS
+from utils import listen  # Import the listen function
 
 def register_handlers(app):
     @app.on_message(filters.command("rename") & filters.private)
@@ -15,10 +16,12 @@ def register_handlers(app):
             m = mega.login(MEGA_CREDENTIALS["email"], MEGA_CREDENTIALS["password"])
 
             await message.reply("Send the file URL you want to rename.")
-            file_url = (await bot.listen(message.chat.id)).text
+            file_url_message = await listen(message.chat.id, app)
+            file_url = file_url_message.text
 
             await message.reply("Send the new name for the file.")
-            new_name = (await bot.listen(message.chat.id)).text
+            new_name_message = await listen(message.chat.id, app)
+            new_name = new_name_message.text
 
             file = m.find(file_url)
             m.rename(file, new_name)
