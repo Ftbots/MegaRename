@@ -2,3 +2,4 @@ pyrogram
 mega.py
 TgCrypto
 tenacity>=8.2.2
+pycryptodome>=3.10.1
