@@ -1,4 +1,4 @@
-pyrogram
+
 mega.py
 TgCrypto
 tenacity>=8.2.2
