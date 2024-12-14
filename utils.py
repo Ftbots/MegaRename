@@ -9,7 +9,7 @@ async def listen(chat_id, app: Client, timeout=60):
         if not future.done():
             future.set_result(message)
         # Remove the handler to avoid conflict in future calls
-        await app.remove_handler(handler)
+        await app.remove_handler(handler, group=0)
 
     try:
         # Wait for user's input with a timeout
