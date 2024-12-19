@@ -50,6 +50,19 @@ async def login(client, message):
         LOGGER.error(f"Login failed: {e}")
         await message.reply(f"Login failed: {e}")
 
+def get_all_files(mega_instance):
+    """Recursively fetch all files from the Mega account."""
+    files = []
+
+    def explore_folder(folder_id):
+        folder_files = mega_instance.get_files()
+        for file_id, file_info in folder_files.items():
+            if "t" in file_info and file_info["t"] == 0:  # Only add files (not folders)
+                files.append(file_info)
+
+    explore_folder("")  # Start from the root folder
+    return files
+
 @app.on_message(filters.command("rename"))
 async def rename_files(client, message):
     global mega_session
@@ -65,38 +78,25 @@ async def rename_files(client, message):
         return await message.reply("New name cannot be empty.")
 
     try:
-        files = mega_session.get_files()
-        if not files:
+        all_files = get_all_files(mega_session)
+        if not all_files:
             return await message.reply("No files found in your Mega account.")
 
         renamed_count = 0
-        for index, (file_id, file_info) in enumerate(files.items(), start=1):
+        for index, file_info in enumerate(all_files, start=1):
             try:
-                # Validate file_info structure
-                if not isinstance(file_info, dict):
-                    LOGGER.warning(f"Invalid file_info for file ID {file_id}")
-                    continue
+                # Extract file name and extension
+                original_file_name = file_info["a"]["n"]
+                file_extension = os.path.splitext(original_file_name)[1]
+                new_file_name = f"{new_name}_{index}{file_extension}"
 
-                attributes = file_info.get("a")
-                if not attributes or not isinstance(attributes, dict):
-                    LOGGER.warning(f"Missing attributes in file_info for file ID {file_id}")
-                    continue
-
-                file_name = attributes.get("n")
-                if not file_name:
-                    LOGGER.warning(f"File name not found for file ID {file_id}")
-                    continue
-
-                # Extract file extension
-                file_extension = os.path.splitext(file_name)[1]
-                renamed_file_name = f"{new_name}_{index}{file_extension}"
-
-                # Rename file
-                mega_session.rename(file_id, renamed_file_name)
+                # Rename the file
+                mega_session.rename(file_info["h"], new_file_name)
                 renamed_count += 1
-                LOGGER.info(f"Renamed '{file_name}' to '{renamed_file_name}'")
+                LOGGER.info(f"Renamed '{original_file_name}' to '{new_file_name}'")
             except Exception as e:
-                LOGGER.error(f"Failed to rename file {file_id}: {e}")
+                LOGGER.error(f"Failed to rename file: {e}")
+                continue
 
         await message.reply(f"Renaming complete. Total files renamed: {renamed_count}")
     except Exception as e:
