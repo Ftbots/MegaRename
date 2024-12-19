@@ -14,6 +14,7 @@ from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logging.getLogger("pyrogram").setLevel(logging.ERROR)
 LOGGER = logging.getLogger(__name__)
+
 # Initialize the bot
 app = Client("mega_rename_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
 app.mega = Mega()
@@ -33,7 +34,7 @@ async def login_process(client, message):
         args = message.text.split()
         if not len(args) == 3:
             return await message.reply("Format : /login email password")
-        email, password = args[1],args[2]
+        email, password = args[1], args[2]
         app.mega_session = app.mega.login(email, password)
         if app.mega_session:
             await message.reply("Mega login successful!")
@@ -45,33 +46,38 @@ async def login_process(client, message):
 
 async def rename_process(client, message):
     """
-    Rename files in the user's Mega account based on a given pattern.
+    Rename all files in the user's Mega account to a given new name sequentially.
     """
     if not app.mega_session:
         await message.reply("You must be logged in to Mega. Use /login first.")
         return
     try:
-        args = message.text.split()
-        if not len(args) == 3:
-            return await message.reply("Format : /rename existname newname")
+        args = message.text.split(maxsplit=1)
+        if len(args) != 2:
+            return await message.reply("Format : /rename newname")
 
-        reply = await message.reply("Checking The Files")
-        old_pattern, new_pattern = args[1], args[2]
+        new_name = args[1].strip()
+        if not new_name:
+            return await message.reply("New name cannot be empty.")
+
+        reply = await message.reply("Fetching files from your Mega account...")
         files = app.mega.get_files()
+        if not files:
+            return await reply.edit("No files found in your Mega account.")
+
         renamed_count = 0
-        reply = await reply.edit("Renaming The Files")
-        for file_id, file_info in files.items():
-            file_name = file_info['a']['n']  # Corrected access to file name
-            f = file_id , file_info
-            if re.search(old_pattern, file_name):
-                new_name = re.sub(old_pattern, new_pattern, file_name)
-                try:
-                    app.mega.rename(f, new_name)
-                    renamed_count += 1
-                    logging.info(f"Renamed '{file_name}' to '{new_name}'")
-                except Exception as e:
-                    logging.error(f"Failed to rename '{file_name}': {e}")
-                    await reply.edit(f"Failed to rename '{file_name}': {e}")
+        await reply.edit("Renaming files...")
+
+        for index, (file_id, file_info) in enumerate(files.items(), start=1):
+            file_name = file_info['a']['n']  # Current file name
+            sequential_name = f"{new_name}_{index}"  # New name with index
+            try:
+                app.mega.rename(file_id, sequential_name)  # Rename the file
+                renamed_count += 1
+                logging.info(f"Renamed '{file_name}' to '{sequential_name}'")
+            except Exception as e:
+                logging.error(f"Failed to rename '{file_name}': {e}")
+                await message.reply(f"Failed to rename '{file_name}': {e}")
 
         await reply.edit(f"Rename process completed. {renamed_count} files renamed.")
 
