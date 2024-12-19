@@ -6,11 +6,13 @@ from aiohttp import web
 from mega import Mega
 from pyrogram import Client, filters
 from pyrogram.filters import command, private
+from pyrogram.handlers import MessageHandler
 from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-
+logging.getLogger("pyrogram").setLevel(ERROR)
+LOGGER = getLogger(__name__)
 # Initialize the bot
 app = Client("mega_rename_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
 
@@ -21,14 +23,12 @@ def initialize_mega(email: str, password: str):
     mega = Mega()
     return mega.login(email, password)
 
-@app.on_message(command("start") & private)
 async def start(client, message):
     """
     Respond to the /start command with a welcome message.
     """
     await message.reply("Welcome to Mega Rename Bot!\nUse /login to log in to your Mega account.")
 
-@app.on_message(command("login") & private)
 async def login(client, message):
     """
     Handle user login to Mega account.
@@ -46,7 +46,6 @@ async def login(client, message):
         logging.error(f"Mega login failed: {str(e)}")
         await message.reply(f"Login failed: {str(e)}")
 
-@app.on_message(command("rename") & private)
 async def rename(client, message):
     """
     Rename files in the user's Mega account based on a given pattern.
@@ -133,6 +132,9 @@ async def main():
     await site.start()
 
     await app.start()
+    app.add_handler(MessageHandler(login, filters=command("login")))
+    app.add_handler(MessageHandler(start, filters=command("start")))
+    app.add_handler(MessageHandler(rename, filters=command("rename")))
     logging.info("Bot is running...")
     await asyncio.Event().wait()
 
