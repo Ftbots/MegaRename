@@ -72,7 +72,7 @@ async def rename_process(client, message):
             file_name = file_info['a']['n']  # Current file name
             sequential_name = f"{new_name}_{index}"  # New name with index
             try:
-                app.mega.rename(file_id, sequential_name)  # Rename the file
+                app.mega.rename(file_id, sequential_name)  # Correct: Use file_id only
                 renamed_count += 1
                 logging.info(f"Renamed '{file_name}' to '{sequential_name}'")
             except Exception as e:
