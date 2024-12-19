@@ -16,13 +16,8 @@ logging.getLogger("pyrogram").setLevel(logging.ERROR)
 LOGGER = logging.getLogger(__name__)
 # Initialize the bot
 app = Client("mega_rename_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
-
-def initialize_mega(email: str, password: str):
-    """
-    Initialize and log in to Mega account.
-    """
-    mega = Mega()
-    return mega.login(email, password)
+app.mega = Mega()
+app.mega_session = None
 
 async def start_process(client, message):
     """
@@ -37,10 +32,13 @@ async def login_process(client, message):
     try:
         args = message.text.split()
         if not len(args) == 3:
-            return "Format : /login email password"
+            return await message.reply("Format : /login email password")
         email, password = args[1],args[2]
-        app.mega = initialize_mega(email, password)
-        await message.reply("Mega login successful!")
+        app.mega_session = app.mega.login(email, password)
+        if app.mega_session:
+            await message.reply("Mega login successful!")
+        else:
+            await message.reply("Login failed. Please check your credentials.")
     except Exception as e:
         logging.error(f"Mega login failed: {str(e)}")
         await message.reply(f"Login failed: {str(e)}")
@@ -49,10 +47,9 @@ async def rename_process(client, message):
     """
     Rename files in the user's Mega account based on a given pattern.
     """
-    if not hasattr(app, 'mega') or not app.mega.is_logged_in:
+    if not app.mega_session:
         await message.reply("You must be logged in to Mega. Use /login first.")
         return
-
     try:
         await message.reply("Enter the rename pattern (e.g., 'oldname -> newname'):")
         pattern_message = await listen(message.chat.id, app)
