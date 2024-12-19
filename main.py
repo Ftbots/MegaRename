@@ -21,6 +21,8 @@ app = Client("mega_rename_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API
 app.mega = Mega()
 app.mega_session = None
 
+cancel_requested = False  # Global variable to track cancellation request
+
 async def start_process(client, message):
     """Respond to the /start command."""
     await message.reply("Welcome to Mega Rename Bot!\nUse /login to log in to your Mega account.")
@@ -43,6 +45,7 @@ async def login_process(client, message):
 
 async def rename_process(client, message):
     """Rename files, preserving file extensions, with improved error handling."""
+    global cancel_requested
     if not app.mega_session:
         await message.reply("You must be logged in to Mega. Use /login first.")
         return
@@ -53,54 +56,50 @@ async def rename_process(client, message):
             return await message.reply("Format: /rename <new_name>")
 
         new_base_name = args[1]
-        files = app.mega.get_files()
-        total_files = len(files)
+        total_files = len(app.mega.get_files())
         renamed_count = 0
         error_count = 0
-        
-        # Inline button for canceling
-        markup = InlineKeyboardMarkup([[InlineKeyboardButton("Cancel Renaming ❌", callback_data="cancel_rename")]])
-        reply = await message.reply(f"Renaming files... 0/{total_files}\n\n"
-                                    f"\"**Powered by NaughtyX**\"", reply_markup=markup)
 
-        cancel_rename = asyncio.Event()  # Event to signal cancellation
+        # Initial message with progress and "Powered by..."
+        reply = await message.reply(f"Renaming files... {renamed_count}/{total_files}\n\n"
+                                    f"\"**Powered by NaughtyX**\"")
 
         async def update_status():
-            nonlocal renamed_count, error_count
-            while not cancel_rename.is_set() and renamed_count + error_count < total_files:
+            nonlocal renamed_count, error_count, cancel_requested
+            while not cancel_requested and renamed_count + error_count < total_files:
                 status_message = f"Renaming files... {renamed_count}/{total_files} "
                 if error_count > 0:
                     status_message += f"({error_count} errors)"
                 status_message += f"\n\n\"**Powered by NaughtyX**\""
                 try:
-                    await reply.edit(status_message, reply_markup=markup)
+                    await reply.edit(status_message)
                 except MessageNotModified:
-                    pass  # Ignore if the message hasn't changed
-                await asyncio.sleep(1)
+                    pass
+                await asyncio.sleep(1)  # Update every 1 second
 
-            # Final Update
+            # Final Update - this section will run regardless of cancellation
             final_message = f"Rename process completed. {renamed_count} files renamed."
             if error_count > 0:
                 final_message += f"\n{error_count} files encountered errors."
+            if cancel_requested:
+                final_message = "Renaming process cancelled."
             await reply.edit(final_message)
 
         # Start the background task for status update
         asyncio.create_task(update_status())
 
         # File renaming logic
-        for file_id, file_info in files.items():
-            if cancel_rename.is_set():
+        for file_id, file_info in app.mega.get_files().items():
+            if cancel_requested:
                 break  # Exit loop if cancellation is requested
 
             try:
                 old_name = file_info['a']['n'] if 'a' in file_info and 'n' in file_info['a'] else "Unknown Filename"
                 base, ext = os.path.splitext(old_name)
                 sanitized_new_name = re.sub(r'[\\/*?:"<>|]', "", new_base_name) + ext
+
                 app.mega.rename((file_id, file_info), sanitized_new_name)
                 renamed_count += 1
-
-                LOGGER.info(f"Renamed '{old_name}' to '{sanitized_new_name}'")
-
             except (KeyError, TypeError) as e:
                 LOGGER.error(f"Error processing file with ID {file_id}: {e}. Skipping this file.")
                 error_count += 1
@@ -108,18 +107,17 @@ async def rename_process(client, message):
                 LOGGER.error(f"Failed to rename '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}")
                 error_count += 1
 
-        await reply.edit(f"Rename process completed. {renamed_count} files renamed.")
-
     except Exception as e:
         LOGGER.error(f"Rename failed: {str(e)}")
         await message.reply(f"Rename failed: {str(e)}")
 
-@app.on_callback_query()
-async def handle_callback_query(client, query):
-    """Handle the inline button for canceling renaming."""
-    if query.data == "cancel_rename":
-        cancel_rename.set()  # Signal cancellation
-        await query.answer("Renaming process cancelled.", show_alert=True)  # Alert user
+@app.on_message(filters.command("cancel"))
+async def handle_cancel(client, message):
+    """Handle the /cancel command to request cancellation."""
+    global cancel_requested  # Access global variable
+    if message.chat.id == reply.chat.id:  # Check if cancel command is in the same chat as the rename command
+        cancel_requested = True
+        await message.reply("Cancellation requested.")
 
 # Health check server (optional)
 health_app = web.Application()
