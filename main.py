@@ -53,7 +53,7 @@ async def rename_process(client, message):
     try:
         args = message.text.split()
         if not len(args) == 3:
-            return await message.reply("Format : /login existname newname")
+            return await message.reply("Format : /rename existname newname")
 
         reply = await message.reply("Checking The Files")
         old_pattern, new_pattern = args[1], args[2]
