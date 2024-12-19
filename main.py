@@ -69,10 +69,16 @@ async def rename_process(client, message):
                    app.mega.rename(f, new_name)
                    renamed_count += 1
                    logging.info("Renamed '{file_name}' to '{new_name}'")
-                   await reply.edit(f"Renamed : {renamed_count} Files")
+                    
             except Exception as e:
                 logging.error(f"Failed to rename '{file_name}': {e}")
                 await reply.edit(f"Failed to rename '{file_name}': {e}")
+                
+        await message.reply(f"Rename process completed. {renamed_count} files renamed.")
+
+    except Exception as e:
+        logging.error(f"Rename failed: {str(e)}")
+        await message.reply(f"Rename failed: {str(e)}")
 
 health_app = web.Application()
 health_app.router.add_get("/health", lambda request: web.Response(text="OK", status=200))
