@@ -12,7 +12,7 @@ from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logging.getLogger("pyrogram").setLevel(logging.ERROR)
-LOGGER = getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 # Initialize the bot
 app = Client("mega_rename_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
 
