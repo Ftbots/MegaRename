@@ -5,14 +5,14 @@ from config import MEGA_CREDENTIALS
 from utils import listen
 import logging
 
-@bot.on_message(command("login") & private)
+@app.on_message(command("login") & private)
 async def login(client, message):
     await message.reply("Please send your Mega email.")
-    email_message = await listen(message.chat.id, bot)
+    email_message = await listen(message.chat.id, app)
     email = email_message.text
     
     await message.reply("Now send your Mega password.")
-    password_message = await listen(message.chat.id, bot)
+    password_message = await listen(message.chat.id, app)
     password = password_message.text
 
     try:
