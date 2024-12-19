@@ -1,109 +1,22 @@
 import os
-import re
 import asyncio
 import logging
 import threading
 from aiohttp import web
 from mega import Mega
 from pyrogram import Client, filters
-from pyrogram.handlers import MessageHandler
-from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS
+from config import BOT_TOKEN, API_ID, API_HASH
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logging.getLogger("pyrogram").setLevel(logging.ERROR)
 LOGGER = logging.getLogger(__name__)
 
 # Initialize the bot
 app = Client("mega_rename_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
-app.mega = Mega()
-app.mega_session = None
+mega = Mega()
+mega_session = None
 
-async def start_process(client, message):
-    """
-    Respond to the /start command with a welcome message.
-    """
-    await message.reply("Welcome to Mega Rename Bot!\nUse /login to log in to your Mega account.")
-
-async def login_process(client, message):
-    """
-    Handle user login to Mega account.
-    """
-    try:
-        args = message.text.split()
-        if len(args) != 3:
-            return await message.reply("Format : /login email password")
-        email, password = args[1], args[2]
-        app.mega_session = app.mega.login(email, password)
-        if app.mega_session:
-            await message.reply("Mega login successful!")
-        else:
-            await message.reply("Login failed. Please check your credentials.")
-    except Exception as e:
-        logging.error(f"Mega login failed: {str(e)}")
-        await message.reply(f"Login failed: {str(e)}")
-
-async def rename_process(client, message):
-    """
-    Rename all files in the user's Mega account to a given new name sequentially.
-    """
-    if not app.mega_session:
-        await message.reply("You must be logged in to Mega. Use /login first.")
-        return
-    try:
-        args = message.text.split(maxsplit=1)
-        if len(args) != 2:
-            return await message.reply("Format : /rename newname")
-
-        new_name = args[1].strip()
-        if not new_name:
-            return await message.reply("New name cannot be empty.")
-
-        reply = await message.reply("Fetching files from your Mega account...")
-        files = app.mega.get_files()
-        if not files:
-            return await reply.edit("No files found in your Mega account.")
-
-        renamed_count = 0
-        await reply.edit("Renaming files...")
-
-        for index, (file_id, file_info) in enumerate(files.items(), start=1):
-            try:
-                # Validate if file_info is a dictionary
-                if not isinstance(file_info, dict):
-                    logging.error(f"Invalid file info for file ID {file_id}: {file_info}")
-                    continue
-
-                # Check if 'a' key exists in file_info
-                attributes = file_info.get('a', {})
-                if not isinstance(attributes, dict):
-                    logging.error(f"Missing or invalid 'a' key in file info for file ID {file_id}")
-                    continue
-
-                # Get the file name
-                file_name = attributes.get('n')
-                if not file_name:
-                    logging.error(f"Missing 'n' key (file name) in attributes for file ID {file_id}")
-                    continue
-
-                # Extract file extension and construct new name
-                file_extension = os.path.splitext(file_name)[1]  # Get file extension
-                sequential_name = f"{new_name}_{index}{file_extension}"  # New name with extension preserved
-
-                # Rename the file
-                app.mega.rename(file_id, sequential_name)
-                renamed_count += 1
-                logging.info(f"Renamed '{file_name}' to '{sequential_name}'")
-            except Exception as e:
-                logging.error(f"Failed to rename file {file_id}: {e}")
-                await message.reply(f"Failed to rename a file {file_id}: {e}")
-
-        await reply.edit(f"Rename process completed. {renamed_count} files renamed.")
-
-    except Exception as e:
-        logging.error(f"Rename failed: {str(e)}")
-        await message.reply(f"Rename failed: {str(e)}")
-
+# Health check server
 health_app = web.Application()
 health_app.router.add_get("/health", lambda request: web.Response(text="OK", status=200))
 
@@ -114,16 +27,83 @@ def start_health_server():
     loop.run_until_complete(runner.setup())
     site = web.TCPSite(runner, host="0.0.0.0", port=8080)
     loop.run_until_complete(site.start())
-    logging.info("Health check server is running...")
+    LOGGER.info("Health check server running...")
     loop.run_forever()
 
 threading.Thread(target=start_health_server, daemon=True).start()
 
-# Command handlers
-app.add_handler(MessageHandler(login_process, filters.command("login")))
-app.add_handler(MessageHandler(start_process, filters.command("start")))
-app.add_handler(MessageHandler(rename_process, filters.command("rename")))
+@app.on_message(filters.command("start"))
+async def start(client, message):
+    await message.reply("Welcome! Use /login to log in to your Mega account.")
+
+@app.on_message(filters.command("login"))
+async def login(client, message):
+    global mega_session
+    try:
+        args = message.text.split(maxsplit=2)
+        if len(args) != 3:
+            return await message.reply("Format: /login email password")
+        email, password = args[1], args[2]
+        mega_session = mega.login(email, password)
+        await message.reply("Login successful!")
+    except Exception as e:
+        LOGGER.error(f"Login failed: {e}")
+        await message.reply(f"Login failed: {e}")
+
+@app.on_message(filters.command("rename"))
+async def rename_files(client, message):
+    global mega_session
+    if not mega_session:
+        return await message.reply("You must log in first. Use /login email password.")
+
+    args = message.text.split(maxsplit=1)
+    if len(args) != 2:
+        return await message.reply("Format: /rename new_name")
+
+    new_name = args[1].strip()
+    if not new_name:
+        return await message.reply("New name cannot be empty.")
+
+    try:
+        files = mega_session.get_files()
+        if not files:
+            return await message.reply("No files found in your Mega account.")
+
+        renamed_count = 0
+        for index, (file_id, file_info) in enumerate(files.items(), start=1):
+            try:
+                # Validate file_info structure
+                if not isinstance(file_info, dict):
+                    LOGGER.warning(f"Invalid file_info for file ID {file_id}")
+                    continue
+
+                attributes = file_info.get("a")
+                if not attributes or not isinstance(attributes, dict):
+                    LOGGER.warning(f"Missing attributes in file_info for file ID {file_id}")
+                    continue
+
+                file_name = attributes.get("n")
+                if not file_name:
+                    LOGGER.warning(f"File name not found for file ID {file_id}")
+                    continue
+
+                # Extract file extension
+                file_extension = os.path.splitext(file_name)[1]
+                renamed_file_name = f"{new_name}_{index}{file_extension}"
+
+                # Rename file
+                mega_session.rename(file_id, renamed_file_name)
+                renamed_count += 1
+                LOGGER.info(f"Renamed '{file_name}' to '{renamed_file_name}'")
+            except Exception as e:
+                LOGGER.error(f"Failed to rename file {file_id}: {e}")
+
+        await message.reply(f"Renaming complete. Total files renamed: {renamed_count}")
+    except Exception as e:
+        LOGGER.error(f"Error during renaming: {e}")
+        await message.reply(f"Error: {e}")
 
 # Run the bot
-logging.info("Bot is running...")
-app.run()
+if __name__ == "__main__":
+    LOGGER.info("Starting bot...")
+    app.run()
