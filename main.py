@@ -73,7 +73,7 @@ async def rename_process(client, message):
                     logging.error(f"Failed to rename '{file_name}': {e}")
                     await reply.edit(f"Failed to rename '{file_name}': {e}")
 
-        await message.reply(f"Rename process completed. {renamed_count} files renamed.")
+        await reply.edit(f"Rename process completed. {renamed_count} files renamed.")
 
     except Exception as e:
         logging.error(f"Rename failed: {str(e)}")
