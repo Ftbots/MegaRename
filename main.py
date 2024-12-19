@@ -51,14 +51,9 @@ async def rename_process(client, message):
         await message.reply("You must be logged in to Mega. Use /login first.")
         return
     try:
-        await message.reply("Enter the rename pattern (e.g., 'oldname -> newname'):")
-        pattern_message = await listen(message.chat.id, app)
-        if not pattern_message or not pattern_message.text:
-            await message.reply("No pattern received. Rename process aborted.")
-            return
-
+        pattern_message = message.text.split()[1]
         # Parse rename pattern
-        match = re.match(r"(.+)\s*->\s*(.+)", pattern_message.text.strip())
+        match = re.match(r"(.+)\s*->\s*(.+)", pattern_message)
         if not match:
             await message.reply("Invalid rename pattern. Use 'oldname -> newname'.")
             return
