@@ -66,14 +66,13 @@ async def rename_process(client, message):
             if re.search(old_pattern, file_name):
                 new_name = re.sub(old_pattern, new_pattern, file_name)
                 try:
-                   app.mega.rename(f, new_name)
-                   renamed_count += 1
-                   logging.info("Renamed '{file_name}' to '{new_name}'")
-                    
-            except Exception as e:
-                logging.error(f"Failed to rename '{file_name}': {e}")
-                await reply.edit(f"Failed to rename '{file_name}': {e}")
-                
+                    app.mega.rename(f, new_name)
+                    renamed_count += 1
+                    logging.info(f"Renamed '{file_name}' to '{new_name}'")
+                except Exception as e:
+                    logging.error(f"Failed to rename '{file_name}': {e}")
+                    await reply.edit(f"Failed to rename '{file_name}': {e}")
+
         await message.reply(f"Rename process completed. {renamed_count} files renamed.")
 
     except Exception as e:
