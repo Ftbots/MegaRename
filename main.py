@@ -6,13 +6,11 @@ import threading
 from aiohttp import web
 from mega import Mega
 from pyrogram import Client, filters
-from pyrogram.filters import command, private
 from pyrogram.handlers import MessageHandler
-from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS  # Your config file
+from config import BOT_TOKEN, API_ID, API_HASH  # Ensure these variables are in your config file
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logging.getLogger("pyrogram").setLevel(logging.ERROR)
 LOGGER = logging.getLogger(__name__)
 
 # Initialize the bot
@@ -29,7 +27,7 @@ async def login_process(client, message):
     try:
         args = message.text.split()
         if len(args) != 3:
-            return await message.reply("Format: /login email password")
+            return await message.reply("Format: /login <email> <password>")
         email, password = args[1], args[2]
         app.mega_session = app.mega.login(email, password)
         if app.mega_session:
@@ -50,17 +48,20 @@ async def rename_process(client, message):
         args = message.text.split()
         if len(args) != 2:
             return await message.reply("Format: /rename <new_name>")
-
+        
         new_base_name = args[1]  # Only the base name, extension will be added later
         reply = await message.reply("Renaming files...")
 
         files = app.mega.get_files()
         renamed_count = 0
+
         for file_id, file_info in files.items():
             old_name = file_info['a']['n']
-            try:                sanitized_new_name = re.sub(r'[\\/*?:"<>|]', "", new_base_name) + ext
-
-                app.mega.rename((file_id, file_info), sanitized_new_name)
+            base, ext = os.path.splitext(old_name)
+            sanitized_new_name = re.sub(r'[\\/*?:"<>|]', "", new_base_name) + ext
+            
+            try:
+                app.mega.rename(file_id, sanitized_new_name)
                 renamed_count += 1
                 LOGGER.info(f"Renamed '{old_name}' to '{sanitized_new_name}'")
             except Exception as e:
@@ -91,11 +92,9 @@ def start_health_server():
 threading.Thread(target=start_health_server, daemon=True).start()
 
 # Command handlers
-app.add_handler(MessageHandler(login_process, filters.command("login")))
 app.add_handler(MessageHandler(start_process, filters.command("start")))
-app
-                base, ext = os.path.splitext(old_name) 
-.add_handler(MessageHandler(rename_process, filters.command("rename")))
+app.add_handler(MessageHandler(login_process, filters.command("login")))
+app.add_handler(MessageHandler(rename_process, filters.command("rename")))
 
 # Run the bot
 LOGGER.info("Bot is running...")
