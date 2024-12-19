@@ -51,57 +51,32 @@ async def rename_process(client, message):
         await message.reply("You must be logged in to Mega. Use /login first.")
         return
     try:
-        pattern_message = message.text.split()[1]
-        # Parse rename pattern
-        match = re.match(r"(.+)\s*->\s*(.+)", pattern_message)
-        if not match:
-            await message.reply("Invalid rename pattern. Use 'oldname -> newname'.")
-            return
+        args = message.text.split()
+        if not len(args) == 3:
+            return await message.reply("Format : /login existname newname")
 
-        old_pattern, new_pattern = map(str.strip, match.groups())
-
-        # Process renaming
+        reply = await message.reply("Checking The Files")
+        old_pattern, new_pattern = args[1], args[2]
         files = app.mega.get_files()
         renamed_count = 0
-
-        for file in files:
-            if re.search(old_pattern, file["name"]):
-                new_name = re.sub(old_pattern, new_pattern, file["name"])
+        reply = await reply.edit("Renaming The Files")
+        for file_id, file_info in files.items():
+            file_name = file_info['a']['n']  # Corrected access to file name
+            f = file_id , file_info
+            if re.search(old_pattern, file_name):
+                new_name = re.sub(old_pattern, new_pattern, file_name)
                 try:
-                    app.mega.rename(file["handle"], new_name)
-                    renamed_count += 1
-                    logging.info(f"Renamed '{file['name']}' to '{new_name}'")
-                except Exception as e:
-                    logging.error(f"Failed to rename '{file['name']}': {e}")
-                    await message.reply(f"Failed to rename '{file['name']}': {e}")
-
-        await message.reply(f"Rename process completed. {renamed_count} files renamed.")
-    except Exception as e:
-        logging.error(f"Rename failed: {str(e)}")
-        await message.reply(f"Rename failed: {str(e)}")
-
-async def listen(chat_id: int, app: Client, timeout: int = 60):
-    """
-    Listen for a single message from a specific chat within a timeout.
-    """
-    future = asyncio.get_event_loop().create_future()
-
-    @app.on_message(filters.private & filters.chat(chat_id))
-    async def handler(client, message):
-        if not future.done():
-            future.set_result(message)
-        await app.remove_handler(handler)
-
-    try:
-        return await asyncio.wait_for(future, timeout)
-    except asyncio.TimeoutError:
-        logging.error(f"Timeout: No response received within {timeout} seconds.")
-        raise Exception("Timeout: No response received.")
+                   app.mega.rename(f, new_name)
+                   renamed_count += 1
+                   logging.info("Renamed '{file_name}' to '{new_name}'")
+                   await reply.edit(f"Renamed : {renamed_count} Files")
+            except Exception as e:
+                logging.error(f"Failed to rename '{file_name}': {e}")
+                await reply.edit(f"Failed to rename '{file_name}': {e}")
 
 health_app = web.Application()
 health_app.router.add_get("/health", lambda request: web.Response(text="OK", status=200))
 
-# Run the health server in a separate thread
 def start_health_server():
     runner = web.AppRunner(health_app)
     loop = asyncio.new_event_loop()
