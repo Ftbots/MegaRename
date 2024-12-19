@@ -76,13 +76,18 @@ async def rename_process(client, message):
                 # Check if file_info is a dictionary and contains expected structure
                 if isinstance(file_info, dict):
                     # Let's print the structure of the file info for better understanding
+                    logging.info(f"File Info for {file_id}: {file_info}")
+
                     file_name = file_info.get('a', {}).get('n', None)
                     if not file_name:
                         logging.warning(f"File '{file_id}' has no valid file name.")
                         continue  # Skip this file if no valid file name is found
 
-                    sequential_name = f"{new_name}_{index}"  # New name with index
-                    app.mega.rename(file_id, sequential_name)  # Correct: Use file_id only
+                    # New name with index
+                    sequential_name = f"{new_name}_{index}"  
+
+                    # Perform renaming using file_id
+                    app.mega.rename(file_id, sequential_name)  
                     renamed_count += 1
                     logging.info(f"Renamed '{file_name}' to '{sequential_name}'")
                 else:
