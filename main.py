@@ -70,10 +70,15 @@ async def rename_process(client, message):
 
         for index, (file_id, file_info) in enumerate(files.items(), start=1):
             try:
-                # Ensure that file_info is a dictionary and contains valid structure
+                # Debugging to inspect the file_info structure
+                logging.info(f"File ID: {file_id} - File Info: {file_info}")
+
+                # Check if file_info is a dictionary and contains expected structure
                 if isinstance(file_info, dict):
+                    # Let's print the structure of the file info for better understanding
                     file_name = file_info.get('a', {}).get('n', None)
                     if not file_name:
+                        logging.warning(f"File '{file_id}' has no valid file name.")
                         continue  # Skip this file if no valid file name is found
 
                     sequential_name = f"{new_name}_{index}"  # New name with index
