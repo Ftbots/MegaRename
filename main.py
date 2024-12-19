@@ -136,7 +136,6 @@ async def main():
     app.add_handler(MessageHandler(start, filters=command("start")))
     app.add_handler(MessageHandler(rename, filters=command("rename")))
     logging.info("Bot is running...")
-    await asyncio.Event().wait()
-
+    
 if __name__ == "__main__":
     asyncio.run(main())
