@@ -35,12 +35,10 @@ async def login_process(client, message):
     Handle user login to Mega account.
     """
     try:
-        await message.reply("Please send your Mega email.")
-        email = (await listen(message.chat.id, app)).text
-
-        await message.reply("Now send your Mega password.")
-        password = (await listen(message.chat.id, app)).text
-
+        args = message.text.split()
+        if not len(args) == 3:
+            return "Format : /login email password"
+        email, password = args[1],args[2]
         app.mega = initialize_mega(email, password)
         await message.reply("Mega login successful!")
     except Exception as e:
