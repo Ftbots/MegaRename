@@ -34,7 +34,7 @@ async def login_process(client, message):
         args = message.text.split()
         if not len(args) == 3:
             return await message.reply("Format : /login email password")
-        email, password = args[1], args[2]
+        email, password = args[1],args[2]
         app.mega_session = app.mega.login(email, password)
         if app.mega_session:
             await message.reply("Mega login successful!")
@@ -69,15 +69,19 @@ async def rename_process(client, message):
         await reply.edit("Renaming files...")
 
         for index, (file_id, file_info) in enumerate(files.items(), start=1):
-            file_name = file_info['a']['n']  # Current file name
-            sequential_name = f"{new_name}_{index}"  # New name with index
             try:
+                # Ensure that the file info contains valid structure
+                file_name = file_info.get('a', {}).get('n', None)
+                if not file_name:
+                    continue  # Skip this file if no valid file name is found
+
+                sequential_name = f"{new_name}_{index}"  # New name with index
                 app.mega.rename(file_id, sequential_name)  # Correct: Use file_id only
                 renamed_count += 1
                 logging.info(f"Renamed '{file_name}' to '{sequential_name}'")
             except Exception as e:
-                logging.error(f"Failed to rename '{file_name}': {e}")
-                await message.reply(f"Failed to rename '{file_name}': {e}")
+                logging.error(f"Failed to rename file: {e}")
+                await message.reply(f"Failed to rename a file: {e}")
 
         await reply.edit(f"Rename process completed. {renamed_count} files renamed.")
 
