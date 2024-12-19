@@ -1,29 +1,83 @@
 import os
+import re
 import asyncio
 import logging
 import threading
 from aiohttp import web
 from mega import Mega
 from pyrogram import Client, filters
-
-# Configure bot credentials
-BOT_TOKEN = "your_bot_token"  # Replace with your bot token
-API_ID = "your_api_id"  # Replace with your API ID
-API_HASH = "your_api_hash"  # Replace with your API Hash
+from pyrogram.filters import command, private
+from pyrogram.handlers import MessageHandler
+from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS  # Your config file
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-LOGGER = logging.getLogger(__name__)
+logging.getLogger("pyrogram").setLevel(logging.ERROR)
+LOGGER = logging.getLogger(__name__) # Corrected logger name
 
-# Initialize the bot and Mega client
+# Initialize the bot
 app = Client("mega_rename_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
-mega = Mega()
-mega_session = None
+app.mega = Mega()
+app.mega_session = None
 
-# Health check server
+async def start_process(client, message):
+    """Respond to the /start command."""
+    await message.reply("Welcome to Mega Rename Bot!nUse /login to log in to your Mega account.")
+
+async def login_process(client, message):
+    """Handle user login to Mega account."""
+    try:
+        args = message.text.split()
+        if len(args) != 3:
+            return await message.reply("Format: /login email password")
+        email, password = args[1], args[2]
+        app.mega_session = app.mega.login(email, password)
+        if app.mega_session:
+            await message.reply("Mega login successful!")
+        else:
+            await message.reply("Login failed. Please check your credentials.")
+    except Exception as e:
+        LOGGER.error(f"Mega login failed: {str(e)}")
+        await message.reply(f"Login failed: {str(e)}")
+
+async def rename_process(client, message):
+    """Rename all files in the user's Mega account to a new name."""
+    if not app.mega_session:
+        await message.reply("You must be logged in to Mega. Use /login first.")
+        return
+
+    try:
+        args = message.text.split()
+        if len(args) != 2:
+            return await message.reply("Format: /rename <new_name>")
+
+        new_name = args[1]
+        reply = await message.reply("Renaming files...")
+
+        files = app.mega.get_files()
+        renamed_count = 0
+        for file_id, file_info in files.items():
+            old_name = file_info['a']['n']
+            try:
+                # Sanitize the new filename
+                sanitized_new_name = re.sub(r'[\/*?:"<>|]', "", new_name)
+
+                app.mega.rename((file_id, file_info), sanitized_new_name)
+                renamed_count += 1
+                LOGGER.info(f"Renamed '{old_name}' to '{sanitized_new_name}'")
+            except Exception as e:
+                LOGGER.error(f"Failed to rename '{old_name}': {e}")
+                await reply.edit(f"Failed to rename '{old_name}': {e}nContinuing with other files...")
+
+        await reply.edit(f"Rename process completed. {renamed_count} files renamed.")
+
+    except Exception as e:
+        LOGGER.error(f"Rename failed: {str(e)}")
+        await message.reply(f"Rename failed: {str(e)}")
+
+# Health check server (optional)
 health_app = web.Application()
 health_app.router.add_get("/health", lambda request: web.Response(text="OK", status=200))
-
 
 def start_health_server():
     runner = web.AppRunner(health_app)
@@ -32,70 +86,16 @@ def start_health_server():
     loop.run_until_complete(runner.setup())
     site = web.TCPSite(runner, host="0.0.0.0", port=8080)
     loop.run_until_complete(site.start())
-    LOGGER.info("Health check server running...")
+    LOGGER.info("Health check server is running...")
     loop.run_forever()
-
 
 threading.Thread(target=start_health_server, daemon=True).start()
 
-
-@app.on_message(filters.command("start"))
-async def start(client, message):
-    await message.reply("Welcome! Use /login <email> <password> to log in to your Mega account.")
-
-
-@app.on_message(filters.command("login"))
-async def login(client, message):
-    global mega_session
-    try:
-        args = message.text.split(maxsplit=2)
-        if len(args) != 3:
-            return await message.reply("Usage: /login <email> <password>")
-        email, password = args[1], args[2]
-        mega_session = mega.login(email, password)
-        await message.reply("Login successful!")
-    except Exception as e:
-        LOGGER.error(f"Login failed: {e}")
-        await message.reply(f"Login failed: {e}")
-
-
-@app.on_message(filters.command("rename"))
-async def rename_files(client, message):
-    global mega_session
-    if not mega_session:
-        return await message.reply("You must log in first. Use /login <email> <password>.")
-
-    args = message.text.split(maxsplit=1)
-    if len(args) != 2:
-        return await message.reply("Usage: /rename <new_name>")
-
-    new_name = args[1].strip()
-    if not new_name:
-        return await message.reply("The new name cannot be empty.")
-
-    try:
-        files = mega_session.get_files()
-        renamed_count = 0
-
-        for file_id, file_info in files.items():
-            if "t" in file_info and file_info["t"] == 0:  # Skip folders
-                try:
-                    original_name = file_info["a"]["n"]
-                    file_extension = os.path.splitext(original_name)[1]
-                    new_file_name = f"{new_name}_{renamed_count + 1}{file_extension}"
-                    mega_session.rename(file_info["h"], new_file_name)
-                    renamed_count += 1
-                    LOGGER.info(f"Renamed '{original_name}' to '{new_file_name}'")
-                except Exception as rename_error:
-                    LOGGER.error(f"Failed to rename '{file_info}': {rename_error}")
-
-        await message.reply(f"Renaming complete. Total files renamed: {renamed_count}")
-    except Exception as e:
-        LOGGER.error(f"Error during renaming: {e}")
-        await message.reply(f"Error: {e}")
-
+# Command handlers
+app.add_handler(MessageHandler(login_process, filters.command("login")))
+app.add_handler(MessageHandler(start_process, filters.command("start")))
+app.add_handler(MessageHandler(rename_process, filters.command("rename")))
 
 # Run the bot
-if __name__ == "__main__":
-    LOGGER.info("Starting the bot...")
-    app.run()
+LOGGER.info("Bot is running...")
+app.run()
