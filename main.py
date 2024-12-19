@@ -13,7 +13,7 @@ from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS  # Your config 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logging.getLogger("pyrogram").setLevel(logging.ERROR)
-LOGGER = logging.getLogger(__name__) # Corrected logger name
+LOGGER = logging.getLogger(__name__)
 
 # Initialize the bot
 app = Client("mega_rename_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
@@ -22,7 +22,7 @@ app.mega_session = None
 
 async def start_process(client, message):
     """Respond to the /start command."""
-    await message.reply("Welcome to Mega Rename Bot!nUse /login to log in to your Mega account.")
+    await message.reply("Welcome to Mega Rename Bot!\nUse /login to log in to your Mega account.")
 
 async def login_process(client, message):
     """Handle user login to Mega account."""
@@ -41,7 +41,7 @@ async def login_process(client, message):
         await message.reply(f"Login failed: {str(e)}")
 
 async def rename_process(client, message):
-    """Rename all files in the user's Mega account to a new name."""
+    """Rename files, preserving file extensions."""
     if not app.mega_session:
         await message.reply("You must be logged in to Mega. Use /login first.")
         return
@@ -51,29 +51,28 @@ async def rename_process(client, message):
         if len(args) != 2:
             return await message.reply("Format: /rename <new_name>")
 
-        new_name = args[1]
+        new_base_name = args[1]  # Only the base name, extension will be added later
         reply = await message.reply("Renaming files...")
 
         files = app.mega.get_files()
         renamed_count = 0
         for file_id, file_info in files.items():
             old_name = file_info['a']['n']
-            try:
-                # Sanitize the new filename
-                sanitized_new_name = re.sub(r'[\/*?:"<>|]', "", new_name)
+            try:                sanitized_new_name = re.sub(r'[\\/*?:"<>|]', "", new_base_name) + ext
 
                 app.mega.rename((file_id, file_info), sanitized_new_name)
                 renamed_count += 1
                 LOGGER.info(f"Renamed '{old_name}' to '{sanitized_new_name}'")
             except Exception as e:
                 LOGGER.error(f"Failed to rename '{old_name}': {e}")
-                await reply.edit(f"Failed to rename '{old_name}': {e}nContinuing with other files...")
+                await reply.edit(f"Failed to rename '{old_name}': {e}\nContinuing with other files...")
 
         await reply.edit(f"Rename process completed. {renamed_count} files renamed.")
 
     except Exception as e:
         LOGGER.error(f"Rename failed: {str(e)}")
         await message.reply(f"Rename failed: {str(e)}")
+
 
 # Health check server (optional)
 health_app = web.Application()
@@ -94,7 +93,9 @@ threading.Thread(target=start_health_server, daemon=True).start()
 # Command handlers
 app.add_handler(MessageHandler(login_process, filters.command("login")))
 app.add_handler(MessageHandler(start_process, filters.command("start")))
-app.add_handler(MessageHandler(rename_process, filters.command("rename")))
+app
+                base, ext = os.path.splitext(old_name) 
+.add_handler(MessageHandler(rename_process, filters.command("rename")))
 
 # Run the bot
 LOGGER.info("Bot is running...")
