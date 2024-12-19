@@ -107,35 +107,27 @@ async def listen(chat_id: int, app: Client, timeout: int = 60):
         logging.error(f"Timeout: No response received within {timeout} seconds.")
         raise Exception("Timeout: No response received.")
 
-async def health_check(request):
-    """
-    Respond to health check requests.
-    """
-    return web.Response(text="OK", status=200)
+health_app = web.Application()
+health_app.router.add_get("/health", lambda request: web.Response(text="OK", status=200))
 
-def create_health_server():
-    """
-    Create a health check web server.
-    """
-    health_app = web.Application()
-    health_app.router.add_get("/health", health_check)
-    return health_app
-
-async def main():
-    """
-    Main function to run the bot and health check server.
-    """
-    health_server = create_health_server()
-    runner = web.AppRunner(health_server)
-    await runner.setup()
+# Run the health server in a separate thread
+def start_health_server():
+    runner = web.AppRunner(health_app)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(runner.setup())
     site = web.TCPSite(runner, host="0.0.0.0", port=8080)
-    await site.start()
+    loop.run_until_complete(site.start())
+    logging.info("Health check server is running...")
+    loop.run_forever()
 
-    await app.start()
-    app.add_handler(MessageHandler(login, filters=command("login")))
-    app.add_handler(MessageHandler(start, filters=command("start")))
-    app.add_handler(MessageHandler(rename, filters=command("rename")))
-    logging.info("Bot is running...")
-    
-if __name__ == "__main__":
-    asyncio.run(main())
+threading.Thread(target=start_health_server, daemon=True).start()
+
+# Command handlers
+app.add_handler(MessageHandler(lambda client, message: message.reply("Login command received."), filters.command("login")))
+app.add_handler(MessageHandler(lambda client, message: message.reply("Start command received."), filters.command("start")))
+app.add_handler(MessageHandler(lambda client, message: message.reply("Rename command received."), filters.command("rename")))
+
+# Run the bot
+logging.info("Bot is running...")
+app.run()
