@@ -50,10 +50,15 @@ async def rename_process(client, message):
             return await message.reply("Format: /rename <new_name>")
 
         new_base_name = args[1]
-        reply = await message.reply("Renaming files...")
+        reply = await message.reply("Renaming files... 0/0")  # Initial message, 0/0 for now
 
         files = app.mega.get_files()
+        total_files = len(files)
         renamed_count = 0
+        
+        # Update the initial message with the correct number of files
+        await reply.edit(f"Renaming files... 0/{total_files}") 
+
         for file_id, file_info in files.items():
             try:
                 old_name = file_info['a']['n'] if 'a' in file_info and 'n' in file_info['a'] else "Unknown Filename"  # Handle missing keys
@@ -62,12 +67,16 @@ async def rename_process(client, message):
 
                 app.mega.rename((file_id, file_info), sanitized_new_name)
                 renamed_count += 1
+                
+                # Update progress message after each file rename
+                await reply.edit(f"Renaming files... {renamed_count}/{total_files}")
+
                 LOGGER.info(f"Renamed '{old_name}' to '{sanitized_new_name}'")
             except (KeyError, TypeError) as e:
                 LOGGER.error(f"Error accessing file information for ID {file_id}: {e}. Skipping this file.")
                 await reply.edit(f"Error processing file with ID {file_id}. Skipping...\nContinuing with other files...")
             except Exception as e:
-                LOGGER.error(f"Failed to rename '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}")  # Handle cases where old_name might not exist
+                LOGGER.error(f"Failed to rename '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}")
                 await reply.edit(f"Failed to rename '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}\nContinuing with other files...")
 
         await reply.edit(f"Rename process completed. {renamed_count} files renamed.")
