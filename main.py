@@ -6,7 +6,6 @@ import threading
 from aiohttp import web
 from mega import Mega
 from pyrogram import Client, filters
-from pyrogram.filters import command, private
 from pyrogram.handlers import MessageHandler
 from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS
 
@@ -32,7 +31,7 @@ async def login_process(client, message):
     """
     try:
         args = message.text.split()
-        if not len(args) == 3:
+        if len(args) != 3:
             return await message.reply("Format : /login email password")
         email, password = args[1], args[2]
         app.mega_session = app.mega.login(email, password)
@@ -70,28 +69,31 @@ async def rename_process(client, message):
 
         for index, (file_id, file_info) in enumerate(files.items(), start=1):
             try:
-                # Debugging to inspect the file_info structure
-                logging.info(f"File ID: {file_id} - File Info: {file_info}")
+                # Debugging: Log the type and content of file_info
+                logging.info(f"File ID: {file_id} - Type of file_info: {type(file_info)} - File Info: {file_info}")
 
                 # Check if file_info is a dictionary and contains expected structure
                 if isinstance(file_info, dict):
-                    # Let's print the structure of the file info for better understanding
+                    # Debugging to inspect the structure of file_info
                     logging.info(f"File Info for {file_id}: {file_info}")
 
+                    # Safe access to file name
                     file_name = file_info.get('a', {}).get('n', None)
                     if not file_name:
                         logging.warning(f"File '{file_id}' has no valid file name.")
                         continue  # Skip this file if no valid file name is found
 
-                    # New name with index
-                    sequential_name = f"{new_name}_{index}"  
+                    # Extracting the file extension and preserving it
+                    file_extension = os.path.splitext(file_name)[1]  # Get file extension
+                    sequential_name = f"{new_name}_{index}{file_extension}"  # New name with extension preserved
 
                     # Perform renaming using file_id
                     app.mega.rename(file_id, sequential_name)  
                     renamed_count += 1
                     logging.info(f"Renamed '{file_name}' to '{sequential_name}'")
                 else:
-                    logging.error(f"Invalid file info structure for file ID {file_id}")
+                    logging.error(f"Invalid file info structure for file ID {file_id}. Type of file_info: {type(file_info)}")
+                    continue  # Skip this file if it doesn't match the expected structure
             except Exception as e:
                 logging.error(f"Failed to rename file {file_id}: {e}")
                 await message.reply(f"Failed to rename a file {file_id}: {e}")
