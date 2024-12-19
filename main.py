@@ -22,6 +22,9 @@ app.mega = Mega()
 app.mega_session = None
 
 cancel_requested = False  # Global variable to track cancellation request
+renamed_count = 0
+error_count = 0
+total_files = 0
 
 async def start_process(client, message):
     """Respond to the /start command."""
@@ -45,7 +48,7 @@ async def login_process(client, message):
 
 async def rename_process(client, message):
     """Rename files, preserving file extensions, with improved error handling."""
-    global cancel_requested
+    global cancel_requested, renamed_count, error_count, total_files
     if not app.mega_session:
         await message.reply("You must be logged in to Mega. Use /login first.")
         return
@@ -64,8 +67,8 @@ async def rename_process(client, message):
         reply = await message.reply(f"Renaming files... {renamed_count}/{total_files}\n\n"
                                     f"\"**Powered by NaughtyX**\"")
 
-        async def update_status():
-            nonlocal renamed_count, error_count, cancel_requested
+        async def update_status(message):
+            global cancel_requested, renamed_count, error_count
             while not cancel_requested and renamed_count + error_count < total_files:
                 status_message = f"Renaming files... {renamed_count}/{total_files} "
                 if error_count > 0:
@@ -86,7 +89,7 @@ async def rename_process(client, message):
             await reply.edit(final_message)
 
         # Start the background task for status update
-        asyncio.create_task(update_status())
+        asyncio.create_task(update_status(message))
 
         # File renaming logic
         for file_id, file_info in app.mega.get_files().items():
@@ -114,7 +117,7 @@ async def rename_process(client, message):
 @app.on_message(filters.command("cancel"))
 async def handle_cancel(client, message):
     """Handle the /cancel command to request cancellation."""
-    global cancel_requested  # Access global variable
+    global cancel_requested
     if message.chat.id == reply.chat.id:  # Check if cancel command is in the same chat as the rename command
         cancel_requested = True
         await message.reply("Cancellation requested.")
