@@ -24,13 +24,13 @@ def initialize_mega(email: str, password: str):
     mega = Mega()
     return mega.login(email, password)
 
-async def start(client, message):
+async def start_process(client, message):
     """
     Respond to the /start command with a welcome message.
     """
     await message.reply("Welcome to Mega Rename Bot!\nUse /login to log in to your Mega account.")
 
-async def login(client, message):
+async def login_process(client, message):
     """
     Handle user login to Mega account.
     """
@@ -47,7 +47,7 @@ async def login(client, message):
         logging.error(f"Mega login failed: {str(e)}")
         await message.reply(f"Login failed: {str(e)}")
 
-async def rename(client, message):
+async def rename_process(client, message):
     """
     Rename files in the user's Mega account based on a given pattern.
     """
@@ -125,9 +125,9 @@ def start_health_server():
 threading.Thread(target=start_health_server, daemon=True).start()
 
 # Command handlers
-app.add_handler(MessageHandler(lambda client, message: message.reply("Login command received."), filters.command("login")))
-app.add_handler(MessageHandler(lambda client, message: message.reply("Start command received."), filters.command("start")))
-app.add_handler(MessageHandler(lambda client, message: message.reply("Rename command received."), filters.command("rename")))
+app.add_handler(MessageHandler(login_process, filters.command("login")))
+app.add_handler(MessageHandler(start_process, filters.command("start")))
+app.add_handler(MessageHandler(rename_process, filters.command("rename")))
 
 # Run the bot
 logging.info("Bot is running...")
