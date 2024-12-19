@@ -51,17 +51,25 @@ async def rename_process(client, message):
             return await message.reply("Format: /rename <new_name>")
 
         new_base_name = args[1]
-        reply = await message.reply("Renaming files... 0/0")  # Initial message, 0/0 for now
+        reply = await message.reply(f"Renaming files... 0/0\n\nWorking... Please wait.")  # Initial message, 0/0 for now
 
         files = app.mega.get_files()
         total_files = len(files)
         renamed_count = 0
         
-        # Update the initial message with the correct number of files
-        await reply.edit(f"Renaming files... 0/{total_files}") 
-
         # Add styles
-        styles = ["<b>Powered by NaughtyX</b>",  "<i>Powered by NaughtyX</i>", "<u>Powered by NaughtyX</u>"]
+        styles = ['"Powered by NaughtyX"', '"Powered by NaughtyX"', '"Powered by NaughtyX"']
+
+        async def update_status():
+            while renamed_count < total_files:
+                status_message = f"Renaming files... {renamed_count}/{total_files}\n\n"
+                status_message += random.choice(styles)  # Choose a random style each time
+                await reply.edit(status_message)
+                await asyncio.sleep(3)  # Delay between status updates
+            await reply.edit(f"Rename process completed. {renamed_count} files renamed.")  # Final completion message
+
+        # Start a separate task to update the status message while renaming
+        asyncio.create_task(update_status())
 
         for file_id, file_info in files.items():
             try:
@@ -71,15 +79,9 @@ async def rename_process(client, message):
 
                 app.mega.rename((file_id, file_info), sanitized_new_name)
                 renamed_count += 1
-                
-                # Update progress message after each file rename
-                status_message = f"Renaming files... {renamed_count}/{total_files}\n\n"
-                status_message += random.choice(styles)  # Choose a random style each time
-
-                await reply.edit(status_message)
-                await asyncio.sleep(3)  # Wait for 3 seconds
 
                 LOGGER.info(f"Renamed '{old_name}' to '{sanitized_new_name}'")
+
             except (KeyError, TypeError) as e:
                 LOGGER.error(f"Error accessing file information for ID {file_id}: {e}. Skipping this file.")
                 await reply.edit(f"Error processing file with ID {file_id}. Skipping...\nContinuing with other files...")
