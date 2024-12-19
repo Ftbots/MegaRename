@@ -12,11 +12,6 @@ logging.basicConfig(level=logging.DEBUG)
 # Initialize the bot
 app = Client("mega_rename_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
 
-# Add handlers
-start.register_handlers(app)
-login.register_handlers(app)
-rename.register_handlers(app)
-
 async def health_check(request):
     return web.Response(text="OK", status=200)
 
