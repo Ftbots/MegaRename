@@ -82,6 +82,7 @@ async def rename_process(client, message):
                 file_name = get_file_name(file_info)
                 if file_name == "Unknown Filename":
                     LOGGER.warning(f"Could not determine filename for ID {file_id}; Skipping.")
+                    LOGGER.debug(f"file_info structure: {file_info}")  # Added detailed logging
                     failed_files.append(f"ID: {file_id}, Error: Could not determine filename")
                     continue
 
@@ -93,9 +94,11 @@ async def rename_process(client, message):
 
             except (KeyError, TypeError, AttributeError, IndexError) as e:
                 LOGGER.error(f"Error processing file with ID {file_id}: {e}. Skipping this file.")
+                LOGGER.debug(f"file_info structure: {file_info}")  # Added detailed logging
                 failed_files.append(f"ID: {file_id}, Error: {e}")
             except Exception as e:
                 LOGGER.exception(f"Unexpected error renaming file {file_id}: {e}")
+                LOGGER.debug(f"file_info structure: {file_info}")  # Added detailed logging
                 failed_files.append(f"ID: {file_id}, Error: {e}")
 
             # Update progress
