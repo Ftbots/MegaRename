@@ -84,32 +84,32 @@ async def rename_process(client, message):
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
-def import_mega_link(mega_link):
+def import_mega_link(mega_session, link):
     try:
-        return app.mega.import_link(mega_link)
+        return mega_session.import_link(link)
     except Exception as e:
-        LOGGER.error(f"Error importing Mega link: {e}")
+        LOGGER.error(f"Failed to import Mega link: {e}")
         raise
 
 
 async def import_external_mega_link_process(client, message):
-    """Import a Mega link."""
+    """Import external Mega links."""
     if not app.mega_session:
         await message.reply("You must be logged in to Mega. Use /login first.")
         return
 
     try:
-        mega_link = message.text.split()[1]
-        result = import_mega_link(mega_link)
+        link = message.text.split()[1]
+        result = import_mega_link(app.mega_session, link)
         if result:
-            await message.reply("Mega link imported successfully!")
+            await message.reply(f"Successfully imported Mega link: {link}")
         else:
-            await message.reply("Failed to import Mega link. Please check the link.")
+            await message.reply(f"Failed to import Mega link: {link}")
     except IndexError:
         await message.reply("Please provide a Mega link.")
     except Exception as e:
-        LOGGER.error(f"Import failed: {str(e)}")
-        await message.reply(f"Import failed: {str(e)}")
+        LOGGER.error(f"Import Mega link failed: {str(e)}")
+        await message.reply(f"Import Mega link failed: {str(e)}")
 
 
 # Health check server (optional)
