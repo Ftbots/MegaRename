@@ -1,4 +1,3 @@
-
 import os
 import re
 import asyncio
@@ -8,24 +7,45 @@ import time
 from datetime import datetime
 from aiohttp import web
 import pymongo
-
-import aiohttp
-from mega import Mega
 from pyrogram import Client, filters
 from pyrogram.filters import command, private
 from pyrogram.handlers import MessageHandler
-from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMIN_USER_ID, MONGO_URI
+from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMIN_USER_ID, MONGO_URI, LOG_CHANNEL_ID  # Add LOG_CHANNEL_ID
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+# Configure logging to send messages to a private Telegram channel
+
+LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID"))  # Add this line and set LOG_CHANNEL_ID in config.py
+if LOG_CHANNEL_ID:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", handlers=[TelegramLogsHandler(LOG_CHANNEL_ID)])
+else:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")  # Fallback if LOG_CHANNEL_ID not set
+
 logging.getLogger("pyrogram").setLevel(logging.ERROR)
 LOGGER = logging.getLogger(__name__)
+
+# Custom handler for sending logs to Telegram
+class TelegramLogsHandler(logging.Handler):
+    def __init__(self, channel_id, app):
+        super().__init__()
+        self.channel_id = channel_id
+        self.app = app
+
+    def emit(self, record):
+        try:
+            log_entry = self.format(record)
+            asyncio.run(self.app.send_message(chat_id=self.channel_id, text=log_entry))
+        except Exception as e:
+            print(f"Error sending log message to Telegram: {e}")
+
 
 # Initialize the bot and store start time
 app = Client("mega_rename_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
 app.mega = Mega()
 app.mega_session = None
 app.start_time = time.time()
+app.telegram_logs_handler = TelegramLogsHandler(LOG_CHANNEL_ID, app)  # Adding handler to app
+
 
 # Initialize MongoDB connection
 try:
@@ -47,6 +67,7 @@ async def add_user_to_db(user_id):
 async def start_process(client, message):
     """Respond to the /start command and add user to DB."""
     await add_user_to_db(message.from_user.id)
+    LOGGER.info(f"New user: Name={message.from_user.first_name} {message.from_user.last_name if message.from_user.last_name else ''}, ID={message.from_user.id}, Username={message.from_user.username if message.from_user.username else ''}")
     await message.reply("Welcome to Mega Rename Bot!\nUse /login to log in to your Mega account.")
 
 
@@ -83,7 +104,7 @@ async def rename_process(client, message):
         total_files = len(files)
         renamed_count = 0
         
-        #Initial message
+        # Initial message
         initial_message = await message.reply(f"Renaming files... 0/{total_files}") 
         last_message = ""
 
