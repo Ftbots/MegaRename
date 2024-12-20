@@ -5,14 +5,27 @@ import logging
 import threading
 import time
 from datetime import datetime
-from aiohttp import web  # <--- ADD THIS LINE
+from aiohttp import web
 
-import aiohttp  # This line was already present.
+import aiohttp
 from mega import Mega
 from pyrogram import Client, filters
 from pyrogram.filters import command, private
 from pyrogram.handlers import MessageHandler
-from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS  # Your config file
+from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS
+
+# ... (rest of your existing code) ...
+
+async def restart_process(client, message):
+    """Restart the bot."""
+    await message.reply("Restarting...")
+    os._exit(0)  # Exit the process cleanly
+
+
+# Command handlers (add restart handler)
+app.add_handler(MessageHandler(restart_process, filters.command("restart")))
+
+# ... (rest of your existing code) ...
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
