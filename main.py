@@ -1,3 +1,4 @@
+
 import os
 import re
 import asyncio
@@ -108,6 +109,17 @@ async def restart_process(client, message):
         await message.reply("You are not authorized to restart the bot.")
 
 
+async def users_process(client, message):
+    """Show the total number of users."""
+    try:
+        total_users = await app.get_chat_members_count("@MegaLinkssRobot")
+        await message.reply(f"Total users: {total_users}")
+    except Exception as e:
+        LOGGER.error(f"Error getting user count: {str(e)}")
+        await message.reply(f"Error getting user count: {str(e)}")
+
+
+
 # Health check server (optional)
 health_app = web.Application()
 health_app.router.add_get("/health", lambda request: web.Response(text="OK", status=200))
@@ -132,6 +144,7 @@ app.add_handler(MessageHandler(login_process, filters.command("login")))
 app.add_handler(MessageHandler(start_process, filters.command("start")))
 app.add_handler(MessageHandler(rename_process, filters.command("rename")))
 app.add_handler(MessageHandler(stats_process, filters.command("stats")))  # Added stats handler
+app.add_handler(MessageHandler(users_process, filters.command("users"))) # Add the new handler
 
 # Run the bot
 LOGGER.info("Bot is running...")
