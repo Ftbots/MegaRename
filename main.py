@@ -1,4 +1,3 @@
-
 import os
 import re
 import asyncio
@@ -7,13 +6,14 @@ import threading
 import time
 from datetime import datetime
 from aiohttp import web
+import pymongo
 
 import aiohttp
 from mega import Mega
 from pyrogram import Client, filters
 from pyrogram.filters import command, private
 from pyrogram.handlers import MessageHandler
-from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMIN_USER_ID  # Add ADMIN_USER_ID to config.py
+from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMIN_USER_ID, MONGO_URI
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -26,9 +26,26 @@ app.mega = Mega()
 app.mega_session = None
 app.start_time = time.time()
 
+# Initialize MongoDB connection
+try:
+    mongo_client = pymongo.MongoClient(MONGO_URI)
+    db = mongo_client["your_database_name"]  # Replace "your_database_name" with your database name.  If it doesn't exist, it will be created.
+    users_collection = db["users"]
+except pymongo.errors.ConnectionFailure as e:
+    LOGGER.error(f"MongoDB connection failed: {e}")
+    exit(1)
+
+
+async def add_user_to_db(user_id):
+    try:
+        users_collection.update_one({"user_id": user_id}, {"$set": {"user_id": user_id}}, upsert=True)
+    except Exception as e:
+        LOGGER.error(f"Error adding user to MongoDB: {e}")
+
 
 async def start_process(client, message):
-    """Respond to the /start command."""
+    """Respond to the /start command and add user to DB."""
+    await add_user_to_db(message.from_user.id)
     await message.reply("Welcome to Mega Rename Bot!\nUse /login to log in to your Mega account.")
 
 
@@ -119,7 +136,6 @@ async def users_process(client, message):
         await message.reply(f"Error getting user count: {str(e)}")
 
 
-
 # Health check server (optional)
 health_app = web.Application()
 health_app.router.add_get("/health", lambda request: web.Response(text="OK", status=200))
@@ -138,13 +154,13 @@ def start_health_server():
 
 threading.Thread(target=start_health_server, daemon=True).start()
 
-# Command handlers
+# Command handlers (note: only start_process is modified to include db interaction)
 app.add_handler(MessageHandler(restart_process, filters.command("restart")))
 app.add_handler(MessageHandler(login_process, filters.command("login")))
 app.add_handler(MessageHandler(start_process, filters.command("start")))
 app.add_handler(MessageHandler(rename_process, filters.command("rename")))
-app.add_handler(MessageHandler(stats_process, filters.command("stats")))  # Added stats handler
-app.add_handler(MessageHandler(users_process, filters.command("users"))) # Add the new handler
+app.add_handler(MessageHandler(stats_process, filters.command("stats")))
+app.add_handler(MessageHandler(users_process, filters.command("users")))
 
 # Run the bot
 LOGGER.info("Bot is running...")
