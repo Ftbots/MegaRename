@@ -8,6 +8,7 @@ from mega import Mega
 from pyrogram import Client, filters
 from pyrogram.filters import command
 from pyrogram.handlers import MessageHandler
+from concurrent.futures import ThreadPoolExecutor
 from config import BOT_TOKEN, API_ID, API_HASH
 
 # Configure logging
@@ -18,6 +19,7 @@ LOGGER = logging.getLogger(__name__)
 app = Client("mega_rename_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
 app.mega = Mega()
 app.mega_session = None
+app.executor = ThreadPoolExecutor(max_workers=20)  # For parallel renaming
 
 # Start command
 async def start_process(client, message):
@@ -43,21 +45,10 @@ async def login_process(client, message):
 
 # Helper function to extract file names
 def extract_file_name(file_info):
-    """Attempts to extract the file name from file_info using various methods."""
     try:
-        # Try common keys first
-        if isinstance(file_info, dict):
-            for key in ['n', 'name', 'a.n']:  # Check multiple potential keys
-                if key in file_info and isinstance(file_info[key], str):
-                    return file_info[key]
-
-            # Handle nested 'a' if it's a dictionary
-            if 'a' in file_info and isinstance(file_info['a'], dict) and 'n' in file_info['a']:
-                return file_info['a']['n']
-    except (KeyError, TypeError, AttributeError, IndexError):
-        pass  # Ignore errors; function will return None
-
-    return None  # Return None if no file name could be extracted
+        return file_info['a']['n']
+    except (KeyError, TypeError):
+        return None
 
 # Rename process
 async def rename_process(client, message):
@@ -71,62 +62,41 @@ async def rename_process(client, message):
             return await message.reply("Format: /rename <new_name>")
 
         new_base_name = args[1]
-        files = await asyncio.to_thread(app.mega.get_files)
-        total_files = len(files)
+        all_files = await asyncio.to_thread(app.mega_session.get_files)
+        total_files = len(all_files)
         renamed_count = 0
         failed_files = []
-        update_interval = 10
-        last_percentage = -1
 
         reply = await message.reply(f"Renaming files... 0/{total_files}")
 
-        for i, (file_id, file_info) in enumerate(files.items()):
+        async def rename_single_file(file_info, file_number):
+            nonlocal renamed_count, failed_files
+            original_file_name = extract_file_name(file_info)
+            if not original_file_name:
+                failed_files.append(f"File ID {file_info}: Could not extract filename")
+                return
+            new_name = f"{new_base_name}_{file_number}{os.path.splitext(original_file_name)[-1]}"
             try:
-                file_name = extract_file_name(file_info)
-                if not file_name:
-                    LOGGER.warning(f"Could not determine filename for ID {file_id}; Skipping.")
-                    LOGGER.debug(f"file_info structure: {file_info}")
-                    failed_files.append(f"ID: {file_id}, Error: Could not determine filename")
-                    continue
-
-                base, ext = os.path.splitext(file_name)
-                sanitized_new_name = re.sub(r'[\\/*?:"<>|]', "", new_base_name) + ext
-
-                await asyncio.to_thread(app.mega.rename, file_id, sanitized_new_name)
+                file_id = next(k for k, v in all_files.items() if v == file_info)
+                app.mega_session.rename(file_id, new_name)
                 renamed_count += 1
-
             except Exception as e:
-                LOGGER.exception(f"Error processing file with ID {file_id}: {e}. Skipping this file.")
-                LOGGER.debug(f"file_info structure: {file_info}")
-                failed_files.append(f"ID: {file_id}, Error: {e}")
+                failed_files.append(f"File {original_file_name}: {e}")
 
-            # Update progress
-            if (i + 1) % update_interval == 0 or i == len(files) - 1:
-                percentage = int((renamed_count / total_files) * 100)
-                if percentage != last_percentage:
-                    try:
-                        await reply.edit_text(f"Renaming files... {percentage}% complete")
-                        last_percentage = percentage
-                    except Exception as e:
-                        LOGGER.error(f"Error editing message: {e}")
+        futures = [
+            app.executor.submit(rename_single_file, file_info, i + 1)
+            for i, (k, file_info) in enumerate(all_files.items())
+        ]
+        for future in asyncio.as_completed(futures):
+            await asyncio.sleep(0)  # Yield control
+            await reply.edit_text(f"Renaming files... {renamed_count}/{total_files} done")
 
-        # Summary message
-        summary = f"Rename process completed. {renamed_count}/{total_files} files renamed."
-        max_failed_to_show = 10
+        await reply.edit_text(f"Rename process completed. {renamed_count}/{total_files} files renamed.")
         if failed_files:
-            failed_files_to_show = failed_files[:max_failed_to_show]
-            error_message = "\n\nThe following files failed to rename:\n" + "\n".join(failed_files_to_show)
-            if len(failed_files) > max_failed_to_show:
-                error_message += f"\n...and {len(failed_files) - max_failed_to_show} more files failed."
-            try:
-                await message.reply(error_message)
-            except Exception as e:
-                LOGGER.error(f"Error sending error message: {e}")
-
-        try:
-            await reply.edit_text(summary)
-        except Exception as e:
-            LOGGER.error(f"Error editing summary message: {e}")
+            error_message = "\n\nThe following files failed to rename:\n" + "\n".join(failed_files[:10])
+            if len(failed_files) > 10:
+                error_message += f"\n...and {len(failed_files) - 10} more files failed."
+            await message.reply(error_message)
 
     except Exception as e:
         LOGGER.error(f"Rename failed: {str(e)}")
