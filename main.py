@@ -20,27 +20,33 @@ app = Client("mega_rename_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API
 app.mega = Mega()
 app.mega_session = None
 
-#Helper function to recursively get folder details
-def get_folder_details(mega_instance, folder_id = "root"):
-    folder_details = {}
-    folder_details["folders"] = []
-    try:
-      files = mega_instance.get_files(folder_id)
-      if files:
-          for file_id, file_info in files.items():
-              if file_info['t'] == 0: # 0 indicates folder in Mega
-                  folder_details["folders"].append(file_info["a"]["n"])
-                  # Recursive call to get subfolders details, you may want to limit recursion depth
-                  folder_details["folders"].extend(get_folder_details(mega_instance, file_id)["folders"])
-      folder_details["total_folders"] = len(folder_details["folders"])
 
-      return folder_details
+def get_mega_details(mega_instance, node_id="root", level=0, max_depth=5, indent=""): #Added max_depth to limit recursion
+    """Recursively retrieves file and folder details."""
+    try:
+        details = mega_instance.get_files(node_id)
+        file_info_list = []
+        if details:
+            for file_id, file_info in details.items():
+                file_type = "file" if file_info["t"] == 1 else "folder"
+                file_info_list.append({
+                    "name": file_info["a"]["n"],
+                    "type": file_type,
+                    "size": file_info["s"] if "s" in file_info else "N/A",  # Handle missing size
+                    "id": file_id,
+                    "path": indent + file_info["a"]["n"]
+                })
+                if file_type == "folder" and level < max_depth: #Recursive call for folders, with depth limit
+                    file_info_list.extend(get_mega_details(mega_instance, file_id, level + 1, max_depth, indent + "  "))
+        return file_info_list
     except Exception as e:
-      LOGGER.error(f"Error getting folder details: {e}")
-      return {"total_folders": 0, "folders": []}
+        LOGGER.error(f"Error getting Mega details: {e}")
+        return []
+
 
 async def start_process(client, message):
-    await message.reply("Welcome to Mega Rename Bot!\nUse /login to log in to your Mega account. Use /getinfo to get folder information.")
+    await message.reply("Welcome to Mega Rename Bot!nUse /login to log in to your Mega account. Use /getinfo to get file/folder information.")
+
 
 async def login_process(client, message):
     try:
@@ -57,11 +63,13 @@ async def login_process(client, message):
         LOGGER.error(f"Mega login failed: {str(e)}")
         await message.reply(f"Login failed: {str(e)}")
 
+
 async def rename_process(client, message):
     if not app.mega_session:
         await message.reply("You must be logged in to Mega. Use /login first.")
         return
-    # ... (rest of rename_process remains the same)
+    # ... (rename_process remains unchanged)
+
 
 async def getinfo_process(client, message):
     if not app.mega_session:
@@ -69,14 +77,16 @@ async def getinfo_process(client, message):
         return
 
     try:
-        folder_info = get_folder_details(app.mega)
-        reply_message = f"Total Folders: {folder_info['total_folders']}\n"
-        if folder_info['folders']:
-            reply_message += "Folder Names:\n"
-            reply_message += "\n".join(folder_info['folders'])
-        else:
-            reply_message += "No folders found."
-        await message.reply(reply_message)
+        all_details = get_mega_details(app.mega)
+        if not all_details:
+            await message.reply("No files or folders found.")
+            return
+
+        reply_message = "Mega File/Folder Information:n"
+        for item in all_details:
+            reply_message += f"Path: {item['path']}, Type: {item['type']}, Size: {item['size']}n"
+
+        await message.reply(reply_message)  #Send the entire list
 
     except Exception as e:
         LOGGER.error(f"Get info failed: {str(e)}")
