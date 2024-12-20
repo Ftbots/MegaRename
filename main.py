@@ -12,7 +12,7 @@ from mega import Mega
 from pyrogram import Client, filters
 from pyrogram.filters import command, private
 from pyrogram.handlers import MessageHandler
-from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS
+from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMIN_USER_ID  # Add ADMIN_USER_ID to config.py
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -99,10 +99,13 @@ async def stats_process(client, message):
 
 
 async def restart_process(client, message):
-    """Restart the bot."""
-    await message.reply("Restarting...")
-    LOGGER.info("Bot restarting...")
-    os._exit(0)
+    """Restart the bot (only for the admin)."""
+    if message.from_user.id == ADMIN_USER_ID:  # Check if the user is the admin
+        await message.reply("Restarting...")
+        LOGGER.info("Bot restarting...")
+        os._exit(0)
+    else:
+        await message.reply("You are not authorized to restart the bot.")
 
 
 # Health check server (optional)
