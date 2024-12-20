@@ -1,4 +1,3 @@
-
 import os
 import re
 import asyncio
@@ -174,9 +173,14 @@ async def broadcast_process(client, message):
     else:
         await message.reply("You are not authorized to use this command.")
 
+
 async def ping_process(client, message):
-    """Respond to the /ping command."""
+    """Respond to the /ping command with ping time."""
+    start_time = time.time()
     await message.reply("Pong!")
+    end_time = time.time()
+    ping_time = (end_time - start_time) * 1000  # in milliseconds
+    await message.reply(f"Ping: {ping_time:.2f}ms")
 
 
 # Health check server (optional)
@@ -210,4 +214,3 @@ app.add_handler(MessageHandler(ping_process, filters.command("ping"))) # Added p
 # Run the bot
 LOGGER.info("Bot is running...")
 app.run()
-                    
