@@ -139,6 +139,39 @@ async def users_process(client, message):
         await message.reply("You are not authorized to use this command.")
 
 
+async def broadcast_process(client, message):
+    """Broadcast a message to all users (only for the admin)."""
+    if message.from_user.id == ADMIN_USER_ID:
+        try:
+            args = message.text.split(maxsplit=1)
+            if len(args) < 2:
+                return await message.reply("Usage: /broadcast <message>")
+
+            broadcast_message = args[1]
+            users = users_collection.find({}, {"user_id": 1, "_id": 0})  # Fetch user IDs from database. Projection is done here to minimize data transfer
+            sent_count = 0
+            failed_count = 0
+
+            async def send_to_user(user_id):
+                nonlocal sent_count, failed_count
+                try:
+                    await app.send_message(chat_id=user_id, text=broadcast_message)
+                    sent_count += 1
+                except Exception as e:
+                    LOGGER.error(f"Failed to send message to {user_id}: {e}")
+                    failed_count += 1
+
+            tasks = [send_to_user(user["user_id"]) async for user in users]
+            await asyncio.gather(*tasks)
+
+            await message.reply(f"Broadcast complete. Sent to {sent_count} users. Failed to send to {failed_count} users.")
+        except Exception as e:
+            LOGGER.error(f"Broadcast failed: {str(e)}")
+            await message.reply(f"Broadcast failed: {str(e)}")
+    else:
+        await message.reply("You are not authorized to use this command.")
+
+
 # Health check server (optional)
 health_app = web.Application()
 health_app.router.add_get("/health", lambda request: web.Response(text="OK", status=200))
@@ -164,6 +197,7 @@ app.add_handler(MessageHandler(start_process, filters.command("start")))
 app.add_handler(MessageHandler(rename_process, filters.command("rename")))
 app.add_handler(MessageHandler(stats_process, filters.command("stats")))
 app.add_handler(MessageHandler(users_process, filters.command("users")))
+app.add_handler(MessageHandler(broadcast_process, filters.command("broadcast")))
 
 # Run the bot
 LOGGER.info("Bot is running...")
