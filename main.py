@@ -6,12 +6,14 @@ import threading
 from aiohttp import web
 from mega import Mega
 from pyrogram import Client, filters
+from pyrogram.filters import command, private
 from pyrogram.handlers import MessageHandler
-from config import BOT_TOKEN, API_ID, API_HASH  # Ensure these variables are in your config file
+from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS  # Your config file
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-LOGGER = logging.getLogger(__name__)
+logging.getLogger("pyrogram").setLevel(logging.ERROR)
+LOGGER = logging.getLogger(__name__) # Corrected logger name
 
 # Initialize the bot
 app = Client("mega_rename_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
@@ -20,14 +22,14 @@ app.mega_session = None
 
 async def start_process(client, message):
     """Respond to the /start command."""
-    await message.reply("Welcome to Mega Rename Bot!\nUse /login to log in to your Mega account.")
+    await message.reply("Welcome to Mega Rename Bot!nUse /login to log in to your Mega account.")
 
 async def login_process(client, message):
     """Handle user login to Mega account."""
     try:
         args = message.text.split()
         if len(args) != 3:
-            return await message.reply("Format: /login <email> <password>")
+            return await message.reply("Format: /login email password")
         email, password = args[1], args[2]
         app.mega_session = app.mega.login(email, password)
         if app.mega_session:
@@ -39,7 +41,7 @@ async def login_process(client, message):
         await message.reply(f"Login failed: {str(e)}")
 
 async def rename_process(client, message):
-    """Rename files, preserving file extensions, with improved error handling."""
+    """Rename all files in the user's Mega account to a new name."""
     if not app.mega_session:
         await message.reply("You must be logged in to Mega. Use /login first.")
         return
@@ -49,35 +51,23 @@ async def rename_process(client, message):
         if len(args) != 2:
             return await message.reply("Format: /rename <new_name>")
 
-        new_base_name = args[1]
-        reply = await message.reply("Renaming files... 0/0")  # Initial message, 0/0 for now
+        new_name = args[1]
+        reply = await message.reply("Renaming files...")
 
         files = app.mega.get_files()
-        total_files = len(files)
         renamed_count = 0
-        
-        # Update the initial message with the correct number of files
-        await reply.edit(f"Renaming files... 0/{total_files}") 
-
         for file_id, file_info in files.items():
+            old_name = file_info['a']['n']
             try:
-                old_name = file_info['a']['n'] if 'a' in file_info and 'n' in file_info['a'] else "Unknown Filename"  # Handle missing keys
-                base, ext = os.path.splitext(old_name)
-                sanitized_new_name = re.sub(r'[\\/*?:"<>|]', "", new_base_name) + ext
+                # Sanitize the new filename
+                sanitized_new_name = re.sub(r'[\/*?:"<>|]', "", new_name)
 
                 app.mega.rename((file_id, file_info), sanitized_new_name)
                 renamed_count += 1
-                
-                # Update progress message after each file rename
-                await reply.edit(f"Renaming files... {renamed_count}/{total_files}")
-
                 LOGGER.info(f"Renamed '{old_name}' to '{sanitized_new_name}'")
-            except (KeyError, TypeError) as e:
-                LOGGER.error(f"Error accessing file information for ID {file_id}: {e}. Skipping this file.")
-                await reply.edit(f"Error processing file with ID {file_id}. Skipping...\nContinuing with other files...")
             except Exception as e:
-                LOGGER.error(f"Failed to rename '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}")
-                await reply.edit(f"Failed to rename '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}\nContinuing with other files...")
+                LOGGER.error(f"Failed to rename '{old_name}': {e}")
+                await reply.edit(f"Failed to rename '{old_name}': {e}nContinuing with other files...")
 
         await reply.edit(f"Rename process completed. {renamed_count} files renamed.")
 
@@ -102,9 +92,14 @@ def start_health_server():
 threading.Thread(target=start_health_server, daemon=True).start()
 
 # Command handlers
-app.add_handler(MessageHandler(start_process, filters.command("start")))
 app.add_handler(MessageHandler(login_process, filters.command("login")))
+app.add_handler(MessageHandler(start_process, filters.command("start")))
 app.add_handler(MessageHandler(rename_process, filters.command("rename")))
+
+# Run the bot
+LOGGER.info("Bot is running...")
+app.run()
+filters.command("rename")))
 
 # Run the bot
 LOGGER.info("Bot is running...")
