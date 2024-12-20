@@ -99,8 +99,3 @@ app.add_handler(MessageHandler(rename_process, filters.command("rename")))
 # Run the bot
 LOGGER.info("Bot is running...")
 app.run()
-filters.command("rename")))
-
-# Run the bot
-LOGGER.info("Bot is running...")
-app.run()
