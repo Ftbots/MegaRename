@@ -18,7 +18,7 @@ app.mega = Mega()
 app.mega_session = None
 
 async def start_process(client, message):
-    await message.reply("Welcome to Mega Rename Bot!nUse /login to log in to your Mega account.")
+    await message.reply("Welcome to Mega Rename Bot!\nUse /login to log in to your Mega account.")
 
 async def login_process(client, message):
     try:
@@ -26,8 +26,8 @@ async def login_process(client, message):
         if len(args) != 3:
             return await message.reply("Format: /login email password")
         email, password = args[1], args[2]
-        await message.reply("Logging in... This may take a moment.") # Inform user
-        app.mega_session = await asyncio.to_thread(app.mega.login, email, password) # Use asyncio.to_thread for blocking operation
+        await message.reply("Logging in... This may take a moment.")  # Inform user
+        app.mega_session = await asyncio.to_thread(app.mega.login, email, password)  # Use asyncio.to_thread for blocking operation
 
         if app.mega_session:
             await message.reply("Mega login successful!")
@@ -48,25 +48,35 @@ async def rename_process(client, message):
             return await message.reply("Format: /rename <new_name>")
 
         new_base_name = args[1]
-        batch_size = 50  # Adjust this based on API limits and performance
-
-        files = await asyncio.to_thread(app.mega.get_files) # Get all files upfront
+        files = await asyncio.to_thread(app.mega.get_files)  # Get files upfront
         total_files = len(files)
         reply = await message.reply(f"Renaming files... 0/{total_files}")
         renamed_count = 0
 
-        for i in range(0, total_files, batch_size):
-            batch = list(files.items())[i:i + batch_size]
+        # Concurrency with asyncio.gather
+        tasks = []
+        for file_id, file_info in files.items():
             try:
-                # Implement batch renaming here. This is the most critical part.
-                # You'll likely need a custom function or modification to the 'mega' library.
-                # This example assumes a hypothetical `batch_rename` method exists in the `mega` library.
-                await asyncio.to_thread(app.mega.batch_rename, batch, new_base_name)
-                renamed_count += len(batch)
-                await reply.edit_text(f"Renaming files... {renamed_count}/{total_files}\nPowered by NaughtyX")
+                old_name = file_info['a']['n'] if 'a' in file_info and 'n' in file_info['a'] else "Unknown Filename"
+                base, ext = os.path.splitext(old_name)
+                sanitized_new_name = re.sub(r'[\/*?:"<>|]', "", new_base_name) + ext
+                task = asyncio.to_thread(app.mega.rename, ((file_id, file_info), sanitized_new_name))
+                tasks.append(task)
+            except (KeyError, TypeError) as e:
+                LOGGER.error(f"Error accessing file information for ID {file_id}: {e}. Skipping this file.")
+                await reply.edit_text(f"Error processing file with ID {file_id}. Skipping...\nContinuing with other files...\nPowered by NaughtyX")
             except Exception as e:
-                LOGGER.error(f"Batch rename failed: {e}")
-                await reply.edit_text(f"Batch rename failed: {e}\nContinuing with other files...\nPowered by NaughtyX")
+                LOGGER.error(f"Failed to prepare rename for '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}")
+                await reply.edit_text(f"Failed to prepare rename for '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}\nContinuing with other files...\nPowered by NaughtyX")
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)  # Handles exceptions from concurrent tasks
+
+        for result in results:
+            if isinstance(result, Exception):
+                LOGGER.error(f"Rename failed: {result}")
+                # Add more sophisticated error handling as needed
+            else:
+                renamed_count += 1
 
         await reply.edit_text(f"Rename process completed. {renamed_count}/{total_files} files renamed.\nPowered by NaughtyX")
 
