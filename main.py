@@ -42,7 +42,7 @@ async def login_process(client, message):
         LOGGER.error(f"Mega login failed: {str(e)}")
         await message.reply(f"Login failed: {str(e)}")
 
-# Rename process
+# Rename process with percentage updates
 async def rename_process(client, message):
     if not app.mega_session:
         await message.reply("You must be logged in to Mega. Use /login first.")
@@ -58,10 +58,11 @@ async def rename_process(client, message):
         total_files = len(files)
         renamed_count = 0
         failed_files = []  # Track failed files
+        update_interval = 10  # Update progress every 10 files
 
         reply = await message.reply(f"Renaming files... 0/{total_files}")
 
-        for file_id, file_info in files.items():
+        for i, (file_id, file_info) in enumerate(files.items()):
             try:
                 old_name = file_info.get('a', {}).get('n', "Unknown Filename")
                 base, ext = os.path.splitext(old_name)
@@ -69,7 +70,6 @@ async def rename_process(client, message):
 
                 await asyncio.to_thread(app.mega.rename, ((file_id, file_info), sanitized_new_name))
                 renamed_count += 1
-                await reply.edit_text(f"Renaming files... {renamed_count}/{total_files}\nPowered by NaughtyX")
             except (KeyError, TypeError, AttributeError) as e:
                 LOGGER.error(f"Error processing file with ID {file_id}: {e}. Skipping this file.")
                 failed_files.append(f"ID: {file_id}, Error: {e}")
@@ -77,11 +77,19 @@ async def rename_process(client, message):
                 LOGGER.error(f"Failed to rename '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}")
                 failed_files.append(f"ID: {file_id}, Error: {e}")
 
+            # Update progress every `update_interval` files or at the last file
+            if (i + 1) % update_interval == 0 or i == len(files) - 1:
+                percentage = (renamed_count / total_files) * 100
+                await reply.edit_text(f"Renaming files... {percentage:.0f}% complete\nPowered by NaughtyX")
+
         # Summary message
         summary = f"Rename process completed. {renamed_count}/{total_files} files renamed.\nPowered by NaughtyX"
-        if failed_files:
-            summary += "\n\nThe following files failed to rename:\n" + "\n".join(failed_files)
         await reply.edit_text(summary)
+
+        # Send failed files in a separate message
+        if failed_files:
+            error_message = "\n\nThe following files failed to rename:\n" + "\n".join(failed_files)
+            await message.reply(error_message)
 
     except Exception as e:
         LOGGER.error(f"Rename failed: {str(e)}")
