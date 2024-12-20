@@ -82,11 +82,16 @@ async def rename_process(client, message):
         async def rename_single_file(file_info, file_number):
             nonlocal renamed_count, failed_files
             original_file_name = extract_file_name(file_info)
-            if not original_file_name:
+            if original_file_name is None:
                 failed_files.append(f"File ID {file_info}: Could not extract filename")
                 return
-            new_name = f"{new_base_name}_{file_number}{original_file_name[original_file_name.rfind('.'):]}"
+
+            if not isinstance(original_file_name, str) or not original_file_name:
+                failed_files.append(f"File ID {file_info}: Invalid filename: {original_file_name}")
+                return
+
             try:
+                new_name = f"{new_base_name}_{file_number}{original_file_name[original_file_name.rfind('.'):]}"
                 file_id = next(k for k, v in all_files.items() if v == file_info)
                 await asyncio.to_thread(app.mega_session.rename, file_id, new_name)
                 renamed_count += 1
