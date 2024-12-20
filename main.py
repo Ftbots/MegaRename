@@ -8,7 +8,7 @@ from mega import Mega
 from pyrogram import Client, filters
 from pyrogram.filters import command
 from pyrogram.handlers import MessageHandler
-from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS
+from config import BOT_TOKEN, API_ID, API_HASH
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -41,6 +41,21 @@ async def login_process(client, message):
         LOGGER.error(f"Mega login failed: {str(e)}")
         await message.reply(f"Login failed: {str(e)}")
 
+# Helper function to extract file names
+def get_file_name(file_info):
+    """Safely extracts the file name from file_info, handling different structures."""
+    try:
+        if isinstance(file_info, dict) and 'a' in file_info and 'n' in file_info['a']:
+            return file_info['a']['n']
+        elif isinstance(file_info, dict) and 'n' in file_info:  # Handle if 'a' is missing
+            return file_info['n']
+        elif hasattr(file_info, 'name'):  # Handle other possible structures
+            return file_info.name
+        else:
+            return "Unknown Filename"  # Return a default if no filename can be extracted
+    except (KeyError, TypeError, AttributeError, IndexError):
+        return "Unknown Filename"  # Handle any error during extraction
+
 # Rename process
 async def rename_process(client, message):
     if not app.mega_session:
@@ -56,27 +71,31 @@ async def rename_process(client, message):
         files = await asyncio.to_thread(app.mega.get_files)
         total_files = len(files)
         renamed_count = 0
-        failed_files = []  # Track failed files
-        update_interval = 10  # Update progress every 10 files
-        last_percentage = -1  # Keep track of the last percentage displayed
+        failed_files = []
+        update_interval = 10
+        last_percentage = -1
 
         reply = await message.reply(f"Renaming files... 0/{total_files}")
 
         for i, (file_id, file_info) in enumerate(files.items()):
             try:
-                old_name = file_info.get('a', {}).get('n', "Unknown Filename")
-                base, ext = os.path.splitext(old_name)
+                file_name = get_file_name(file_info)
+                if file_name == "Unknown Filename":
+                    LOGGER.warning(f"Could not determine filename for ID {file_id}; Skipping.")
+                    failed_files.append(f"ID: {file_id}, Error: Could not determine filename")
+                    continue
+
+                base, ext = os.path.splitext(file_name)
                 sanitized_new_name = re.sub(r'[\\/*?:"<>|]', "", new_base_name) + ext
 
-                # Corrected rename logic
                 await asyncio.to_thread(app.mega.rename, file_id, sanitized_new_name)
                 renamed_count += 1
 
-            except (KeyError, TypeError, AttributeError) as e:
+            except (KeyError, TypeError, AttributeError, IndexError) as e:
                 LOGGER.error(f"Error processing file with ID {file_id}: {e}. Skipping this file.")
                 failed_files.append(f"ID: {file_id}, Error: {e}")
             except Exception as e:
-                LOGGER.error(f"Failed to rename '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}")
+                LOGGER.exception(f"Unexpected error renaming file {file_id}: {e}")
                 failed_files.append(f"ID: {file_id}, Error: {e}")
 
             # Update progress
@@ -91,7 +110,7 @@ async def rename_process(client, message):
 
         # Summary message
         summary = f"Rename process completed. {renamed_count}/{total_files} files renamed.\nPowered by NaughtyX"
-        max_failed_to_show = 10  # Limit the number of failed files displayed
+        max_failed_to_show = 10
         if failed_files:
             failed_files_to_show = failed_files[:max_failed_to_show]
             error_message = "\n\nThe following files failed to rename:\n" + "\n".join(failed_files_to_show)
