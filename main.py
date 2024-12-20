@@ -6,13 +6,12 @@ import threading
 from aiohttp import web
 from mega import Mega
 from pyrogram import Client, filters
-from pyrogram.filters import command, private
+from pyrogram.filters import command
 from pyrogram.handlers import MessageHandler
 from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logging.getLogger("pyrogram").setLevel(logging.ERROR)
 LOGGER = logging.getLogger(__name__)
 
 # Initialize the bot
@@ -42,7 +41,7 @@ async def login_process(client, message):
         LOGGER.error(f"Mega login failed: {str(e)}")
         await message.reply(f"Login failed: {str(e)}")
 
-# Rename process with limited failed files display
+# Rename process
 async def rename_process(client, message):
     if not app.mega_session:
         await message.reply("You must be logged in to Mega. Use /login first.")
@@ -69,8 +68,10 @@ async def rename_process(client, message):
                 base, ext = os.path.splitext(old_name)
                 sanitized_new_name = re.sub(r'[\\/*?:"<>|]', "", new_base_name) + ext
 
-                await asyncio.to_thread(app.mega.rename, ((file_id, file_info), sanitized_new_name))
+                # Corrected rename logic
+                await asyncio.to_thread(app.mega.rename, file_id, sanitized_new_name)
                 renamed_count += 1
+
             except (KeyError, TypeError, AttributeError) as e:
                 LOGGER.error(f"Error processing file with ID {file_id}: {e}. Skipping this file.")
                 failed_files.append(f"ID: {file_id}, Error: {e}")
@@ -78,13 +79,13 @@ async def rename_process(client, message):
                 LOGGER.error(f"Failed to rename '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}")
                 failed_files.append(f"ID: {file_id}, Error: {e}")
 
-            # Update progress every `update_interval` files or at the last file
+            # Update progress
             if (i + 1) % update_interval == 0 or i == len(files) - 1:
                 percentage = int((renamed_count / total_files) * 100)
-                if percentage != last_percentage:  # Check if percentage has changed
+                if percentage != last_percentage:
                     try:
                         await reply.edit_text(f"Renaming files... {percentage}% complete\nPowered by NaughtyX")
-                        last_percentage = percentage  # Update the last percentage
+                        last_percentage = percentage
                     except Exception as e:
                         LOGGER.error(f"Error editing message: {e}")
 
@@ -92,12 +93,12 @@ async def rename_process(client, message):
         summary = f"Rename process completed. {renamed_count}/{total_files} files renamed.\nPowered by NaughtyX"
         max_failed_to_show = 10  # Limit the number of failed files displayed
         if failed_files:
-            failed_files_to_show = failed_files[:max_failed_to_show]  # Limit the number of files
+            failed_files_to_show = failed_files[:max_failed_to_show]
             error_message = "\n\nThe following files failed to rename:\n" + "\n".join(failed_files_to_show)
             if len(failed_files) > max_failed_to_show:
                 error_message += f"\n...and {len(failed_files) - max_failed_to_show} more files failed."
             try:
-                await message.reply(error_message)  # Send error details in a separate message
+                await message.reply(error_message)
             except Exception as e:
                 LOGGER.error(f"Error sending error message: {e}")
 
