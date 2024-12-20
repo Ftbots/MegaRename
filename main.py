@@ -29,7 +29,7 @@ app.start_time = time.time()
 # Initialize MongoDB connection
 try:
     mongo_client = pymongo.MongoClient(MONGO_URI)
-    db = mongo_client["Clusters0"]  # Replace "your_database_name" with your database name.  If it doesn't exist, it will be created.
+    db = mongo_client["Cluster0"]  # Replace "your_database_name" with your database name. If it doesn't exist, it will be created.
     users_collection = db["users"]
 except pymongo.errors.ConnectionFailure as e:
     LOGGER.error(f"MongoDB connection failed: {e}")
@@ -127,9 +127,9 @@ async def restart_process(client, message):
 
 
 async def users_process(client, message):
-    """Show the total number of users."""
+    """Show the total number of users from MongoDB."""
     try:
-        total_users = await app.get_chat_members_count("@MegaLinkssRobot")
+        total_users = users_collection.count_documents({})
         await message.reply(f"Total users: {total_users}")
     except Exception as e:
         LOGGER.error(f"Error getting user count: {str(e)}")
@@ -154,7 +154,7 @@ def start_health_server():
 
 threading.Thread(target=start_health_server, daemon=True).start()
 
-# Command handlers (note: only start_process is modified to include db interaction)
+# Command handlers
 app.add_handler(MessageHandler(restart_process, filters.command("restart")))
 app.add_handler(MessageHandler(login_process, filters.command("login")))
 app.add_handler(MessageHandler(start_process, filters.command("start")))
