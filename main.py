@@ -29,7 +29,7 @@ app.start_time = time.time()
 # Initialize MongoDB connection
 try:
     mongo_client = pymongo.MongoClient(MONGO_URI)
-    db = mongo_client["Cluster0"]  # Replace "your_database_name" with your database name. If it doesn't exist, it will be created.
+    db = mongo_client["your_database_name"]  # Replace "your_database_name" with your database name. If it doesn't exist, it will be created.
     users_collection = db["users"]
 except pymongo.errors.ConnectionFailure as e:
     LOGGER.error(f"MongoDB connection failed: {e}")
@@ -127,13 +127,16 @@ async def restart_process(client, message):
 
 
 async def users_process(client, message):
-    """Show the total number of users from MongoDB."""
-    try:
-        total_users = users_collection.count_documents({})
-        await message.reply(f"Total users: {total_users}")
-    except Exception as e:
-        LOGGER.error(f"Error getting user count: {str(e)}")
-        await message.reply(f"Error getting user count: {str(e)}")
+    """Show the total number of users (only for the admin)."""
+    if message.from_user.id == ADMIN_USER_ID:  # Check if the user is the admin
+        try:
+            total_users = users_collection.count_documents({})
+            await message.reply(f"Total users: {total_users}")
+        except Exception as e:
+            LOGGER.error(f"Error getting user count: {str(e)}")
+            await message.reply(f"Error getting user count: {str(e)}")
+    else:
+        await message.reply("You are not authorized to use this command.")
 
 
 # Health check server (optional)
