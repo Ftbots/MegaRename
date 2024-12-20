@@ -62,8 +62,6 @@ async def rename_process(client, message):
 
                 renamed_count += 1
                 await reply.edit_text(f"Renaming files... {renamed_count}/{total_files}\nPowered by NaughtyX")
-            except (KeyError, TypeError) as e:
-                LOGGER.error(f"Error accessing file information for ID {file_id}: {e}. Skipping this file.")
             except Exception as e:
                 LOGGER.error(f"Failed to rename '{old_name}': {e}")
 
@@ -76,7 +74,11 @@ async def rename_process(client, message):
 async def handle_health_check(request):
     return web.Response(text="OK")
 
-async def main():
+async def run_telegram_bot(client):
+    await client.start()
+    await client.idle()
+
+async def run_web_server():
     web_app = web.Application()
     web_app.add_routes([web.get('/health', handle_health_check)])
     runner = web.AppRunner(web_app)
@@ -84,9 +86,19 @@ async def main():
     site = web.TCPSite(runner, '0.0.0.0', 8080)
     await site.start()
 
-    await app.start()
-    await app.idle()
-    await runner.cleanup()
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    except asyncio.CancelledError:
+        LOGGER.info("Web server shutting down...")
+    finally:
+        await runner.cleanup()
+
+async def main():
+    await asyncio.gather(
+        run_telegram_bot(app),
+        run_web_server()
+    )
 
 if __name__ == "__main__":
     app.add_handler(MessageHandler(start_process, filters.command("start")))
