@@ -5,8 +5,9 @@ import logging
 import threading
 import time
 from datetime import datetime
+from aiohttp import web  # <--- ADD THIS LINE
 
-import aiohttp
+import aiohttp  # This line was already present.
 from mega import Mega
 from pyrogram import Client, filters
 from pyrogram.filters import command, private
