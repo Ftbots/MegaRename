@@ -42,7 +42,7 @@ async def login_process(client, message):
         LOGGER.error(f"Mega login failed: {str(e)}")
         await message.reply(f"Login failed: {str(e)}")
 
-# Rename process with percentage updates
+# Rename process with change-tracking updates
 async def rename_process(client, message):
     if not app.mega_session:
         await message.reply("You must be logged in to Mega. Use /login first.")
@@ -59,6 +59,7 @@ async def rename_process(client, message):
         renamed_count = 0
         failed_files = []  # Track failed files
         update_interval = 10  # Update progress every 10 files
+        last_percentage = -1  # Keep track of the last percentage displayed
 
         reply = await message.reply(f"Renaming files... 0/{total_files}")
 
@@ -79,8 +80,13 @@ async def rename_process(client, message):
 
             # Update progress every `update_interval` files or at the last file
             if (i + 1) % update_interval == 0 or i == len(files) - 1:
-                percentage = (renamed_count / total_files) * 100
-                await reply.edit_text(f"Renaming files... {percentage:.0f}% complete\nPowered by NaughtyX")
+                percentage = int((renamed_count / total_files) * 100)
+                if percentage != last_percentage:  # Check if percentage has changed
+                    try:
+                        await reply.edit_text(f"Renaming files... {percentage}% complete\nPowered by NaughtyX")
+                        last_percentage = percentage  # Update the last percentage
+                    except Exception as e:
+                        LOGGER.error(f"Error editing message: {e}")
 
         # Summary message
         summary = f"Rename process completed. {renamed_count}/{total_files} files renamed.\nPowered by NaughtyX"
