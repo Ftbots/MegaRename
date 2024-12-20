@@ -81,24 +81,21 @@ async def rename_process(client, message):
         files = app.mega.get_files()
         total_files = len(files)
         renamed_count = 0
-        reply = await message.reply(f"Renaming files... 0/{total_files}")  # Initial message
+        reply = await message.reply(f"Renaming files... 0/{total_files}")
 
         for file_id, file_info in files.items():
             try:
-                old_name = file_info['a']['n'] if 'a' in file_info and 'n' in file_info['a'] else "Unknown Filename"  # Handle missing keys
+                old_name = file_info['a']['n'] if 'a' in file_info and 'n' in file_info['a'] else "Unknown Filename"
                 base, ext = os.path.splitext(old_name)
                 sanitized_new_name = re.sub(r'[\\/*?:"<>|]', "", new_base_name) + ext
 
                 app.mega.rename((file_id, file_info), sanitized_new_name)
                 renamed_count += 1
-                await reply.edit(f"Renaming files... {renamed_count}/{total_files}")  # Update message
+                await reply.edit(f"Renaming files... {renamed_count}/{total_files}")
                 LOGGER.info(f"Renamed '{old_name}' to '{sanitized_new_name}'")
-            except (KeyError, TypeError) as e:
-                LOGGER.error(f"Error accessing file information for ID {file_id}: {e}. Skipping this file.")
-                await reply.edit(f"Error processing file with ID {file_id}. Skipping...\nContinuing with other files...")
             except Exception as e:
-                LOGGER.error(f"Failed to rename '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}")  # Handle cases where old_name might not exist
-                await reply.edit(f"Failed to rename '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}\nContinuing with other files...")
+                LOGGER.error(f"Failed to rename file: {e}")
+                await reply.edit(f"Failed to rename file. Continuing...")
 
         await reply.edit(f"Rename process completed. {renamed_count} files renamed.")
 
@@ -118,7 +115,7 @@ async def stats_process(client, message):
 
 async def restart_process(client, message):
     """Restart the bot (only for the admin)."""
-    if message.from_user.id == ADMIN_USER_ID:  # Check if the user is the admin
+    if message.from_user.id == ADMIN_USER_ID:
         await message.reply("Restarting...")
         LOGGER.info("Bot restarting...")
         os._exit(0)
@@ -128,7 +125,7 @@ async def restart_process(client, message):
 
 async def users_process(client, message):
     """Show the total number of users (only for the admin)."""
-    if message.from_user.id == ADMIN_USER_ID:  # Check if the user is the admin
+    if message.from_user.id == ADMIN_USER_ID:
         try:
             total_users = users_collection.count_documents({})
             await message.reply(f"Total users: {total_users}")
@@ -139,6 +136,7 @@ async def users_process(client, message):
         await message.reply("You are not authorized to use this command.")
 
 
+# Updated Broadcast Process
 async def broadcast_process(client, message):
     """Broadcast a message to all users (only for the admin)."""
     if message.from_user.id == ADMIN_USER_ID:
@@ -148,7 +146,11 @@ async def broadcast_process(client, message):
                 return await message.reply("Usage: /broadcast <message>")
 
             broadcast_message = args[1]
-            users = users_collection.find({}, {"user_id": 1, "_id": 0})  # Fetch user IDs from database. Projection is done here to minimize data transfer
+            
+            # Convert to async iterator here
+            users = users_collection.find({}, {"user_id": 1, "_id": 0})
+            async_users = (user async for user in users)
+
             sent_count = 0
             failed_count = 0
 
@@ -161,13 +163,15 @@ async def broadcast_process(client, message):
                     LOGGER.error(f"Failed to send message to {user_id}: {e}")
                     failed_count += 1
 
-            tasks = [send_to_user(user["user_id"]) async for user in users]
+            tasks = [send_to_user(user["user_id"]) for user in async_users]
             await asyncio.gather(*tasks)
 
             await message.reply(f"Broadcast complete. Sent to {sent_count} users. Failed to send to {failed_count} users.")
+
         except Exception as e:
             LOGGER.error(f"Broadcast failed: {str(e)}")
             await message.reply(f"Broadcast failed: {str(e)}")
+
     else:
         await message.reply("You are not authorized to use this command.")
 
