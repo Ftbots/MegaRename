@@ -16,3 +16,4 @@ ADMIN_USER_ID = 891959176  # Your Telegram user ID
 
 # MongoDB connection string
 MONGO_URI = "mongodb+srv://suryabhai991100:pPmTrc0DoyPsEcmn@cluster0.xpua4.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+LOG_CHANNEL_ID = os.getenv("-1002496124040") 
