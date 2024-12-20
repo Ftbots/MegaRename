@@ -29,7 +29,7 @@ app.start_time = time.time()
 # Initialize MongoDB connection
 try:
     mongo_client = pymongo.MongoClient(MONGO_URI)
-    db = mongo_client["your_database_name"]  # Replace "your_database_name" with your database name.  If it doesn't exist, it will be created.
+    db = mongo_client["Clusters0"]  # Replace "your_database_name" with your database name.  If it doesn't exist, it will be created.
     users_collection = db["users"]
 except pymongo.errors.ConnectionFailure as e:
     LOGGER.error(f"MongoDB connection failed: {e}")
