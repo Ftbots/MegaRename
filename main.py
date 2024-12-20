@@ -42,19 +42,22 @@ async def login_process(client, message):
         await message.reply(f"Login failed: {str(e)}")
 
 # Helper function to extract file names
-def get_file_name(file_info):
-    """Safely extracts the file name from file_info, handling different structures."""
+def extract_file_name(file_info):
+    """Attempts to extract the file name from file_info using various methods."""
     try:
-        if isinstance(file_info, dict) and 'a' in file_info and 'n' in file_info['a']:
-            return file_info['a']['n']
-        elif isinstance(file_info, dict) and 'n' in file_info:  # Handle if 'a' is missing
-            return file_info['n']
-        elif hasattr(file_info, 'name'):  # Handle other possible structures
-            return file_info.name
-        else:
-            return "Unknown Filename"  # Return a default if no filename can be extracted
+        # Try common keys first
+        if isinstance(file_info, dict):
+            for key in ['n', 'name', 'a.n']:  # Check multiple potential keys
+                if key in file_info and isinstance(file_info[key], str):
+                    return file_info[key]
+
+            # Handle nested 'a' if it's a dictionary
+            if 'a' in file_info and isinstance(file_info['a'], dict) and 'n' in file_info['a']:
+                return file_info['a']['n']
     except (KeyError, TypeError, AttributeError, IndexError):
-        return "Unknown Filename"  # Handle any error during extraction
+        pass  # Ignore errors; function will return None
+
+    return None  # Return None if no file name could be extracted
 
 # Rename process
 async def rename_process(client, message):
@@ -79,10 +82,10 @@ async def rename_process(client, message):
 
         for i, (file_id, file_info) in enumerate(files.items()):
             try:
-                file_name = get_file_name(file_info)
-                if file_name == "Unknown Filename":
+                file_name = extract_file_name(file_info)
+                if not file_name:
                     LOGGER.warning(f"Could not determine filename for ID {file_id}; Skipping.")
-                    LOGGER.debug(f"file_info structure: {file_info}")  # Added detailed logging
+                    LOGGER.debug(f"file_info structure: {file_info}")
                     failed_files.append(f"ID: {file_id}, Error: Could not determine filename")
                     continue
 
@@ -92,13 +95,9 @@ async def rename_process(client, message):
                 await asyncio.to_thread(app.mega.rename, file_id, sanitized_new_name)
                 renamed_count += 1
 
-            except (KeyError, TypeError, AttributeError, IndexError) as e:
-                LOGGER.error(f"Error processing file with ID {file_id}: {e}. Skipping this file.")
-                LOGGER.debug(f"file_info structure: {file_info}")  # Added detailed logging
-                failed_files.append(f"ID: {file_id}, Error: {e}")
             except Exception as e:
-                LOGGER.exception(f"Unexpected error renaming file {file_id}: {e}")
-                LOGGER.debug(f"file_info structure: {file_info}")  # Added detailed logging
+                LOGGER.exception(f"Error processing file with ID {file_id}: {e}. Skipping this file.")
+                LOGGER.debug(f"file_info structure: {file_info}")
                 failed_files.append(f"ID: {file_id}, Error: {e}")
 
             # Update progress
@@ -106,13 +105,13 @@ async def rename_process(client, message):
                 percentage = int((renamed_count / total_files) * 100)
                 if percentage != last_percentage:
                     try:
-                        await reply.edit_text(f"Renaming files... {percentage}% complete\nPowered by NaughtyX")
+                        await reply.edit_text(f"Renaming files... {percentage}% complete")
                         last_percentage = percentage
                     except Exception as e:
                         LOGGER.error(f"Error editing message: {e}")
 
         # Summary message
-        summary = f"Rename process completed. {renamed_count}/{total_files} files renamed.\nPowered by NaughtyX"
+        summary = f"Rename process completed. {renamed_count}/{total_files} files renamed."
         max_failed_to_show = 10
         if failed_files:
             failed_files_to_show = failed_files[:max_failed_to_show]
