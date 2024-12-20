@@ -1,25 +1,28 @@
-
 import os
 import re
 import asyncio
 import logging
 import threading
-from aiohttp import web
+import time
+from datetime import datetime
+
+import aiohttp
 from mega import Mega
 from pyrogram import Client, filters
 from pyrogram.filters import command, private
 from pyrogram.handlers import MessageHandler
-from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS
+from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS  # Your config file
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logging.getLogger("pyrogram").setLevel(logging.ERROR)
 LOGGER = logging.getLogger(__name__)
 
-# Initialize the bot
+# Initialize the bot and store start time
 app = Client("mega_rename_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
 app.mega = Mega()
 app.mega_session = None
+app.start_time = time.time()
 
 
 async def start_process(client, message):
@@ -63,7 +66,7 @@ async def rename_process(client, message):
 
         for file_id, file_info in files.items():
             try:
-                old_name = file_info['a']['n'] if 'a' in file_info and 'n' in file_info['a'] else "Unknown Filename"
+                old_name = file_info['a']['n'] if 'a' in file_info and 'n' in file_info['a'] else "Unknown Filename"  # Handle missing keys
                 base, ext = os.path.splitext(old_name)
                 sanitized_new_name = re.sub(r'[\\/*?:"<>|]', "", new_base_name) + ext
 
@@ -75,7 +78,7 @@ async def rename_process(client, message):
                 LOGGER.error(f"Error accessing file information for ID {file_id}: {e}. Skipping this file.")
                 await reply.edit(f"Error processing file with ID {file_id}. Skipping...\nContinuing with other files...")
             except Exception as e:
-                LOGGER.error(f"Failed to rename '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}")
+                LOGGER.error(f"Failed to rename '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}")  # Handle cases where old_name might not exist
                 await reply.edit(f"Failed to rename '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}\nContinuing with other files...")
 
         await reply.edit(f"Rename process completed. {renamed_count} files renamed.")
@@ -85,45 +88,13 @@ async def rename_process(client, message):
         await message.reply(f"Rename failed: {str(e)}")
 
 
-async def get_file_list_process(client, message):
-    """Lists files in the Mega account."""
-    if not app.mega_session:
-        await message.reply("You must be logged in to Mega. Use /login first.")
-        return
-
-    try:
-        files = app.mega.get_files()
-        file_list = ""
-        for file_id, file_info in files.items():
-            file_name = file_info['a']['n'] if 'a' in file_info and 'n' in file_info['a'] else "Unknown Filename"
-            file_list += f"- {file_name}\n"
-        await message.reply(f"Files in your Mega account:\n{file_list}")
-    except Exception as e:
-        LOGGER.error(f"Failed to get file list: {e}")
-        await message.reply(f"Failed to get file list: {e}")
-
-
-async def download_file_process(client, message):
-    if not app.mega_session:
-        await message.reply("You must be logged in to Mega. Use /login first.")
-        return
-    try:
-        args = message.text.split()
-        if len(args) != 2:
-            return await message.reply("Format: /download <file_name>")
-        file_name = args[1]
-        files = app.mega.get_files()
-        for file_id, file_info in files.items():
-            if file_info['a']['n'] == file_name:
-                file_url = app.mega.get_download_link(file_id)
-                await message.reply(f"Download Link for {file_name}:\n{file_url}")
-                return
-        await message.reply(f"File '{file_name}' not found.")
-
-    except Exception as e:
-        LOGGER.error(f"Download process failed: {e}")
-        await message.reply(f"Download process failed: {e}")
-
+async def stats_process(client, message):
+    """Show bot uptime."""
+    uptime_seconds = int(time.time() - app.start_time)
+    uptime_days = uptime_seconds // (24 * 3600)
+    uptime_hours = (uptime_seconds % (24 * 3600)) // 3600
+    uptime_minutes = (uptime_seconds % 3600) // 60
+    await message.reply(f"Bot uptime: {uptime_days} days, {uptime_hours} hours, {uptime_minutes} minutes")
 
 
 # Health check server (optional)
@@ -148,10 +119,8 @@ threading.Thread(target=start_health_server, daemon=True).start()
 app.add_handler(MessageHandler(login_process, filters.command("login")))
 app.add_handler(MessageHandler(start_process, filters.command("start")))
 app.add_handler(MessageHandler(rename_process, filters.command("rename")))
-app.add_handler(MessageHandler(get_file_list_process, filters.command("list")))
-app.add_handler(MessageHandler(download_file_process, filters.command("download")))
+app.add_handler(MessageHandler(stats_process, filters.command("stats")))  # Added stats handler
 
 # Run the bot
 LOGGER.info("Bot is running...")
 app.run()
-
