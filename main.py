@@ -6,9 +6,7 @@ import threading
 from aiohttp import web
 from mega import Mega
 from pyrogram import Client, filters
-from pyrogram.filters import command
 from pyrogram.handlers import MessageHandler
-from concurrent.futures import ThreadPoolExecutor
 from config import BOT_TOKEN, API_ID, API_HASH
 
 # Configure logging
@@ -19,7 +17,6 @@ LOGGER = logging.getLogger(__name__)
 app = Client("mega_rename_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
 app.mega = Mega()
 app.mega_session = None
-app.executor = ThreadPoolExecutor(max_workers=20)  # For parallel renaming
 
 # Start command
 async def start_process(client, message):
@@ -45,10 +42,17 @@ async def login_process(client, message):
 
 # Helper function to extract file names
 def extract_file_name(file_info):
+    """Attempts to extract the file name from file_info using various methods."""
     try:
-        return file_info['a']['n']
-    except (KeyError, TypeError):
-        return None
+        if isinstance(file_info, dict):
+            for key in ['n', 'name', 'a.n']:
+                if key in file_info and isinstance(file_info[key], str):
+                    return file_info[key]
+            if 'a' in file_info and isinstance(file_info['a'], dict) and 'n' in file_info['a']:
+                return file_info['a']['n']
+    except (KeyError, TypeError, AttributeError, IndexError):
+        pass
+    return None
 
 # Rename process
 async def rename_process(client, message):
@@ -63,10 +67,14 @@ async def rename_process(client, message):
 
         new_base_name = args[1]
         all_files = await asyncio.to_thread(app.mega_session.get_files)
+
+        if not all_files:
+            await message.reply("No files found in your Mega account.")
+            return
+
         total_files = len(all_files)
         renamed_count = 0
         failed_files = []
-
         reply = await message.reply(f"Renaming files... 0/{total_files}")
 
         async def rename_single_file(file_info, file_number):
@@ -75,27 +83,22 @@ async def rename_process(client, message):
             if not original_file_name:
                 failed_files.append(f"File ID {file_info}: Could not extract filename")
                 return
-            new_name = f"{new_base_name}_{file_number}{os.path.splitext(original_file_name)[-1]}"
+            new_name = f"{new_base_name}_{file_number}{original_file_name[original_file_name.rfind('.'):]}"
             try:
                 file_id = next(k for k, v in all_files.items() if v == file_info)
-                app.mega_session.rename(file_id, new_name)
+                await asyncio.to_thread(app.mega_session.rename, file_id, new_name)
                 renamed_count += 1
             except Exception as e:
                 failed_files.append(f"File {original_file_name}: {e}")
 
-        futures = [
-            app.executor.submit(rename_single_file, file_info, i + 1)
-            for i, (k, file_info) in enumerate(all_files.items())
-        ]
-        for future in asyncio.as_completed(futures):
-            await asyncio.sleep(0)  # Yield control
-            await reply.edit_text(f"Renaming files... {renamed_count}/{total_files} done")
+        futures = [rename_single_file(file_info, i + 1) for i, (k, file_info) in enumerate(all_files.items())]
+        for i, future in enumerate(asyncio.as_completed(futures)):
+            await future
+            await reply.edit_text(f"Renaming files... {int(((i + 1) / total_files) * 100)}% complete")
 
         await reply.edit_text(f"Rename process completed. {renamed_count}/{total_files} files renamed.")
         if failed_files:
-            error_message = "\n\nThe following files failed to rename:\n" + "\n".join(failed_files[:10])
-            if len(failed_files) > 10:
-                error_message += f"\n...and {len(failed_files) - 10} more files failed."
+            error_message = "\n\nThe following files failed to rename:\n" + "\n".join(failed_files)
             await message.reply(error_message)
 
     except Exception as e:
@@ -116,12 +119,11 @@ def start_health_server():
     LOGGER.info("Health check server is running...")
     loop.run_forever()
 
-# Start health server in a separate thread
 threading.Thread(target=start_health_server, daemon=True).start()
 
 # Add handlers
-app.add_handler(MessageHandler(login_process, filters.command("login")))
 app.add_handler(MessageHandler(start_process, filters.command("start")))
+app.add_handler(MessageHandler(login_process, filters.command("login")))
 app.add_handler(MessageHandler(rename_process, filters.command("rename")))
 
 # Run the bot
