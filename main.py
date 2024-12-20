@@ -1,3 +1,4 @@
+
 import os
 import re
 import asyncio
@@ -9,6 +10,7 @@ from pyrogram import Client, filters
 from pyrogram.filters import command, private
 from pyrogram.handlers import MessageHandler
 from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS  # Your config file
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -81,6 +83,35 @@ async def rename_process(client, message):
         await message.reply(f"Rename failed: {str(e)}")
 
 
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
+def import_mega_link(mega_link):
+    try:
+        return app.mega.import_link(mega_link)
+    except Exception as e:
+        LOGGER.error(f"Error importing Mega link: {e}")
+        raise
+
+
+async def import_external_mega_link_process(client, message):
+    """Import a Mega link."""
+    if not app.mega_session:
+        await message.reply("You must be logged in to Mega. Use /login first.")
+        return
+
+    try:
+        mega_link = message.text.split()[1]
+        result = import_mega_link(mega_link)
+        if result:
+            await message.reply("Mega link imported successfully!")
+        else:
+            await message.reply("Failed to import Mega link. Please check the link.")
+    except IndexError:
+        await message.reply("Please provide a Mega link.")
+    except Exception as e:
+        LOGGER.error(f"Import failed: {str(e)}")
+        await message.reply(f"Import failed: {str(e)}")
+
+
 # Health check server (optional)
 health_app = web.Application()
 health_app.router.add_get("/health", lambda request: web.Response(text="OK", status=200))
@@ -101,7 +132,9 @@ threading.Thread(target=start_health_server, daemon=True).start()
 app.add_handler(MessageHandler(login_process, filters.command("login")))
 app.add_handler(MessageHandler(start_process, filters.command("start")))
 app.add_handler(MessageHandler(rename_process, filters.command("rename")))
+app.add_handler(MessageHandler(import_external_mega_link_process, filters.command("import externalmegalink")))
 
 # Run the bot
 LOGGER.info("Bot is running...")
 app.run()
+
