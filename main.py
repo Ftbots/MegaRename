@@ -14,19 +14,6 @@ from pyrogram.filters import command, private
 from pyrogram.handlers import MessageHandler
 from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS
 
-# ... (rest of your existing code) ...
-
-async def restart_process(client, message):
-    """Restart the bot."""
-    await message.reply("Restarting...")
-    os._exit(0)  # Exit the process cleanly
-
-
-# Command handlers (add restart handler)
-app.add_handler(MessageHandler(restart_process, filters.command("restart")))
-
-# ... (rest of your existing code) ...
-
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logging.getLogger("pyrogram").setLevel(logging.ERROR)
@@ -111,6 +98,13 @@ async def stats_process(client, message):
     await message.reply(f"Bot uptime: {uptime_days} days, {uptime_hours} hours, {uptime_minutes} minutes")
 
 
+async def restart_process(client, message):
+    """Restart the bot."""
+    await message.reply("Restarting...")
+    LOGGER.info("Bot restarting...")
+    os._exit(0)
+
+
 # Health check server (optional)
 health_app = web.Application()
 health_app.router.add_get("/health", lambda request: web.Response(text="OK", status=200))
@@ -130,6 +124,7 @@ def start_health_server():
 threading.Thread(target=start_health_server, daemon=True).start()
 
 # Command handlers
+app.add_handler(MessageHandler(restart_process, filters.command("restart")))
 app.add_handler(MessageHandler(login_process, filters.command("login")))
 app.add_handler(MessageHandler(start_process, filters.command("start")))
 app.add_handler(MessageHandler(rename_process, filters.command("rename")))
