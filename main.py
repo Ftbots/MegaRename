@@ -138,7 +138,7 @@ async def users_process(client, message):
 
 # Updated Broadcast Process
 async def broadcast_process(client, message):
-    """Broadcast a message to all users (only for the admin)."""
+    """Broadcast a message to all users (only for admin)."""
     if message.from_user.id == ADMIN_USER_ID:
         try:
             args = message.text.split(maxsplit=1)
@@ -146,10 +146,9 @@ async def broadcast_process(client, message):
                 return await message.reply("Usage: /broadcast <message>")
 
             broadcast_message = args[1]
-            
-            # Convert to async iterator here
-            users = users_collection.find({}, {"user_id": 1, "_id": 0})
-            async_users = (user async for user in users)
+
+            # Fetch all user IDs synchronously
+            user_ids = [user["user_id"] for user in users_collection.find({}, {"user_id": 1, "_id": 0})]
 
             sent_count = 0
             failed_count = 0
@@ -163,7 +162,7 @@ async def broadcast_process(client, message):
                     LOGGER.error(f"Failed to send message to {user_id}: {e}")
                     failed_count += 1
 
-            tasks = [send_to_user(user["user_id"]) for user in async_users]
+            tasks = [send_to_user(user_id) for user_id in user_ids]  # Use the list of user IDs directly
             await asyncio.gather(*tasks)
 
             await message.reply(f"Broadcast complete. Sent to {sent_count} users. Failed to send to {failed_count} users.")
@@ -171,7 +170,6 @@ async def broadcast_process(client, message):
         except Exception as e:
             LOGGER.error(f"Broadcast failed: {str(e)}")
             await message.reply(f"Broadcast failed: {str(e)}")
-
     else:
         await message.reply("You are not authorized to use this command.")
 
