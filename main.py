@@ -3,7 +3,6 @@ import re
 import asyncio
 import logging
 import threading
-import random
 from aiohttp import web
 from mega import Mega
 from pyrogram import Client, filters
@@ -60,9 +59,6 @@ async def rename_process(client, message):
         # Update the initial message with the correct number of files
         await reply.edit(f"Renaming files... 0/{total_files}") 
 
-        # Add styles
-        styles = ["<b>Powered by NaughtyX</b>",  "<i>Powered by NaughtyX</i>", "<u>Powered by NaughtyX</u>"]
-
         for file_id, file_info in files.items():
             try:
                 old_name = file_info['a']['n'] if 'a' in file_info and 'n' in file_info['a'] else "Unknown Filename"  # Handle missing keys
@@ -73,11 +69,7 @@ async def rename_process(client, message):
                 renamed_count += 1
                 
                 # Update progress message after each file rename
-                status_message = f"Renaming files... {renamed_count}/{total_files}\n\n"
-                status_message += random.choice(styles)  # Choose a random style each time
-
-                await reply.edit(status_message)
-                await asyncio.sleep(3)  # Wait for 3 seconds
+                await reply.edit(f"Renaming files... {renamed_count}/{total_files}")
 
                 LOGGER.info(f"Renamed '{old_name}' to '{sanitized_new_name}'")
             except (KeyError, TypeError) as e:
