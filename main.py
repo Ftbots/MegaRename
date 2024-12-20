@@ -81,8 +81,10 @@ async def rename_process(client, message):
         files = app.mega.get_files()
         total_files = len(files)
         renamed_count = 0
-        reply = await message.reply(f"Renaming files... 0/{total_files}")
-
+        
+        #Initial message - don't try to edit this until something changes
+        initial_message = await message.reply(f"Renaming files... 0/{total_files}") 
+        
         for file_id, file_info in files.items():
             try:
                 old_name = file_info['a']['n'] if 'a' in file_info and 'n' in file_info['a'] else "Unknown Filename"
@@ -91,13 +93,21 @@ async def rename_process(client, message):
 
                 app.mega.rename((file_id, file_info), sanitized_new_name)
                 renamed_count += 1
-                await reply.edit(f"Renaming files... {renamed_count}/{total_files}")
+                
+                #Only edit if renamed_count has changed
+                if renamed_count > 0:
+                    await initial_message.edit(f"Renaming files... {renamed_count}/{total_files}")
                 LOGGER.info(f"Renamed '{old_name}' to '{sanitized_new_name}'")
             except Exception as e:
                 LOGGER.error(f"Failed to rename file: {e}")
-                await reply.edit(f"Failed to rename file. Continuing...")
+                #Only edit if an error occurred
+                if renamed_count > 0:
+                  await initial_message.edit(f"Failed to rename a file. Continuing... {renamed_count}/{total_files}")
+                else:
+                    await initial_message.edit(f"Failed to rename a file. Continuing...")
 
-        await reply.edit(f"Rename process completed. {renamed_count} files renamed.")
+
+        await initial_message.edit(f"Rename process completed. {renamed_count} files renamed.")
 
     except Exception as e:
         LOGGER.error(f"Rename failed: {str(e)}")
@@ -209,7 +219,7 @@ app.add_handler(MessageHandler(rename_process, filters.command("rename")))
 app.add_handler(MessageHandler(stats_process, filters.command("stats")))
 app.add_handler(MessageHandler(users_process, filters.command("users")))
 app.add_handler(MessageHandler(broadcast_process, filters.command("broadcast")))
-app.add_handler(MessageHandler(ping_process, filters.command("ping"))) # Added ping handler
+app.add_handler(MessageHandler(ping_process, filters.command("ping")))  # Added ping handler
 
 # Run the bot
 LOGGER.info("Bot is running...")
