@@ -75,6 +75,7 @@ async def rename_process(client, message):
         total_files = len(all_files)
         renamed_count = 0
         failed_files = []
+        MAX_FAILED_FILES_TO_SHOW = 5  # Show only this many failed files in the summary
         last_percentage = -1  # Track the last percentage
         reply = await message.reply(f"Renaming files... 0/{total_files}")
 
@@ -100,10 +101,16 @@ async def rename_process(client, message):
                 await reply.edit_text(f"Renaming files... {current_percentage}% complete")
                 last_percentage = current_percentage
 
-        await reply.edit_text(f"Rename process completed. {renamed_count}/{total_files} files renamed.")
+        # Summary message with limited failed files
+        summary = f"Rename process completed. {renamed_count}/{total_files} files renamed."
         if failed_files:
-            error_message = "\n\nThe following files failed to rename:\n" + "\n".join(failed_files)
-            await message.reply(error_message)
+            failed_files_to_show = failed_files[:MAX_FAILED_FILES_TO_SHOW]
+            error_message = "\n\nThe following files failed to rename:\n" + "\n".join(failed_files_to_show)
+            if len(failed_files) > MAX_FAILED_FILES_TO_SHOW:
+                error_message += f"\n...and {len(failed_files) - MAX_FAILED_FILES_TO_SHOW} more files failed. Request a full log."
+            summary += error_message
+
+        await reply.edit_text(summary)  # Edit final message
 
     except Exception as e:
         LOGGER.error(f"Rename failed: {str(e)}")
