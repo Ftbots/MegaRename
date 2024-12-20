@@ -42,7 +42,7 @@ async def login_process(client, message):
         LOGGER.error(f"Mega login failed: {str(e)}")
         await message.reply(f"Login failed: {str(e)}")
 
-# Rename process with change-tracking updates
+# Rename process with limited failed files display
 async def rename_process(client, message):
     if not app.mega_session:
         await message.reply("You must be logged in to Mega. Use /login first.")
@@ -90,12 +90,21 @@ async def rename_process(client, message):
 
         # Summary message
         summary = f"Rename process completed. {renamed_count}/{total_files} files renamed.\nPowered by NaughtyX"
-        await reply.edit_text(summary)
-
-        # Send failed files in a separate message
+        max_failed_to_show = 10  # Limit the number of failed files displayed
         if failed_files:
-            error_message = "\n\nThe following files failed to rename:\n" + "\n".join(failed_files)
-            await message.reply(error_message)
+            failed_files_to_show = failed_files[:max_failed_to_show]  # Limit the number of files
+            error_message = "\n\nThe following files failed to rename:\n" + "\n".join(failed_files_to_show)
+            if len(failed_files) > max_failed_to_show:
+                error_message += f"\n...and {len(failed_files) - max_failed_to_show} more files failed."
+            try:
+                await message.reply(error_message)  # Send error details in a separate message
+            except Exception as e:
+                LOGGER.error(f"Error sending error message: {e}")
+
+        try:
+            await reply.edit_text(summary)
+        except Exception as e:
+            LOGGER.error(f"Error editing summary message: {e}")
 
     except Exception as e:
         LOGGER.error(f"Rename failed: {str(e)}")
