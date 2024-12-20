@@ -1,3 +1,4 @@
+
 import os
 import re
 import asyncio
@@ -82,9 +83,10 @@ async def rename_process(client, message):
         total_files = len(files)
         renamed_count = 0
         
-        #Initial message - don't try to edit this until something changes
+        #Initial message
         initial_message = await message.reply(f"Renaming files... 0/{total_files}") 
-        
+        last_message = ""
+
         for file_id, file_info in files.items():
             try:
                 old_name = file_info['a']['n'] if 'a' in file_info and 'n' in file_info['a'] else "Unknown Filename"
@@ -93,18 +95,17 @@ async def rename_process(client, message):
 
                 app.mega.rename((file_id, file_info), sanitized_new_name)
                 renamed_count += 1
-                
-                #Only edit if renamed_count has changed
-                if renamed_count > 0:
-                    await initial_message.edit(f"Renaming files... {renamed_count}/{total_files}")
+                current_message = f"Renaming files... {renamed_count}/{total_files}"
+                if current_message != last_message:
+                    await initial_message.edit(current_message)
+                    last_message = current_message
                 LOGGER.info(f"Renamed '{old_name}' to '{sanitized_new_name}'")
             except Exception as e:
                 LOGGER.error(f"Failed to rename file: {e}")
-                #Only edit if an error occurred
-                if renamed_count > 0:
-                  await initial_message.edit(f"Failed to rename a file. Continuing... {renamed_count}/{total_files}")
-                else:
-                    await initial_message.edit(f"Failed to rename a file. Continuing...")
+                current_message = f"Failed to rename a file. Continuing... {renamed_count}/{total_files}"
+                if current_message != last_message:
+                    await initial_message.edit(current_message)
+                    last_message = current_message
 
 
         await initial_message.edit(f"Rename process completed. {renamed_count} files renamed.")
