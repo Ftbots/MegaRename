@@ -75,6 +75,7 @@ async def rename_process(client, message):
         total_files = len(all_files)
         renamed_count = 0
         failed_files = []
+        last_percentage = -1  # Track the last percentage
         reply = await message.reply(f"Renaming files... 0/{total_files}")
 
         async def rename_single_file(file_info, file_number):
@@ -94,7 +95,10 @@ async def rename_process(client, message):
         futures = [rename_single_file(file_info, i + 1) for i, (k, file_info) in enumerate(all_files.items())]
         for i, future in enumerate(asyncio.as_completed(futures)):
             await future
-            await reply.edit_text(f"Renaming files... {int(((i + 1) / total_files) * 100)}% complete")
+            current_percentage = int(((i + 1) / total_files) * 100)
+            if current_percentage != last_percentage:  # Only update if percentage changed
+                await reply.edit_text(f"Renaming files... {current_percentage}% complete")
+                last_percentage = current_percentage
 
         await reply.edit_text(f"Rename process completed. {renamed_count}/{total_files} files renamed.")
         if failed_files:
