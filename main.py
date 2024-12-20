@@ -89,11 +89,22 @@ async def getinfo_process(client, message):
         return
 
     try:
-        user_email = app.mega.email
         storage_info = app.mega.get_storage_info()
         total_files = len(app.mega.get_files())
 
-        if user_email and storage_info:
+        # Robustly attempt to get the email; handles potential variations in session object structure.
+        user_email = None
+        try:
+            user_email = app.mega_session.get('email', None) #Try direct access to the email field.
+            if not user_email: #If the direct access fails
+                # Attempt to find email in nested structure (adjust path as needed based on mega.py's output)
+                user_email = app.mega_session.get('u', {}).get('e', None)
+        except (AttributeError, KeyError, TypeError):
+            user_email = "Email Not Found (Session data may be differently structured)"
+            LOGGER.error("Could not extract email from Mega session; may need to adjust extraction logic.")
+
+
+        if storage_info and user_email:
             response = f"**Mega Account Information:**\n"
             response += f"Email: {user_email}\n"
             response += f"Storage Used: {storage_info['used']:.2f} GB\n"
@@ -134,4 +145,3 @@ app.add_handler(MessageHandler(getinfo_process, filters.command("getinfo")))
 # Run the bot
 LOGGER.info("Bot is running...")
 app.run()
-            
