@@ -1,3 +1,4 @@
+
 import os
 import re
 import asyncio
@@ -21,34 +22,13 @@ app.mega = Mega()
 app.mega_session = None
 
 
-def get_mega_details(mega_instance, node_id="root", level=0, max_depth=5, indent=""): #Added max_depth to limit recursion
-    """Recursively retrieves file and folder details."""
-    try:
-        details = mega_instance.get_files(node_id)
-        file_info_list = []
-        if details:
-            for file_id, file_info in details.items():
-                file_type = "file" if file_info["t"] == 1 else "folder"
-                file_info_list.append({
-                    "name": file_info["a"]["n"],
-                    "type": file_type,
-                    "size": file_info["s"] if "s" in file_info else "N/A",  # Handle missing size
-                    "id": file_id,
-                    "path": indent + file_info["a"]["n"]
-                })
-                if file_type == "folder" and level < max_depth: #Recursive call for folders, with depth limit
-                    file_info_list.extend(get_mega_details(mega_instance, file_id, level + 1, max_depth, indent + "  "))
-        return file_info_list
-    except Exception as e:
-        LOGGER.error(f"Error getting Mega details: {e}")
-        return []
-
-
 async def start_process(client, message):
-    await message.reply("Welcome to Mega Rename Bot!nUse /login to log in to your Mega account. Use /getinfo to get file/folder information.")
+    """Respond to the /start command."""
+    await message.reply("Welcome to Mega Rename Bot!\nUse /login to log in to your Mega account.")
 
 
 async def login_process(client, message):
+    """Handle user login to Mega account."""
     try:
         args = message.text.split()
         if len(args) != 3:
@@ -65,43 +45,113 @@ async def login_process(client, message):
 
 
 async def rename_process(client, message):
-    if not app.mega_session:
-        await message.reply("You must be logged in to Mega. Use /login first.")
-        return
-    # ... (rename_process remains unchanged)
-
-
-async def getinfo_process(client, message):
+    """Rename files, preserving file extensions, with improved error handling and progress update."""
     if not app.mega_session:
         await message.reply("You must be logged in to Mega. Use /login first.")
         return
 
     try:
-        all_details = get_mega_details(app.mega)
-        if not all_details:
-            await message.reply("No files or folders found.")
-            return
+        args = message.text.split()
+        if len(args) != 2:
+            return await message.reply("Format: /rename <new_name>")
 
-        reply_message = "Mega File/Folder Information:n"
-        for item in all_details:
-            reply_message += f"Path: {item['path']}, Type: {item['type']}, Size: {item['size']}n"
+        new_base_name = args[1]
+        files = app.mega.get_files()
+        total_files = len(files)
+        renamed_count = 0
+        reply = await message.reply(f"Renaming files... 0/{total_files}")  # Initial message
 
-        await message.reply(reply_message)  #Send the entire list
+        for file_id, file_info in files.items():
+            try:
+                old_name = file_info['a']['n'] if 'a' in file_info and 'n' in file_info['a'] else "Unknown Filename"
+                base, ext = os.path.splitext(old_name)
+                sanitized_new_name = re.sub(r'[\\/*?:"<>|]', "", new_base_name) + ext
+
+                app.mega.rename((file_id, file_info), sanitized_new_name)
+                renamed_count += 1
+                await reply.edit(f"Renaming files... {renamed_count}/{total_files}")  # Update message
+                LOGGER.info(f"Renamed '{old_name}' to '{sanitized_new_name}'")
+            except (KeyError, TypeError) as e:
+                LOGGER.error(f"Error accessing file information for ID {file_id}: {e}. Skipping this file.")
+                await reply.edit(f"Error processing file with ID {file_id}. Skipping...\nContinuing with other files...")
+            except Exception as e:
+                LOGGER.error(f"Failed to rename '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}")
+                await reply.edit(f"Failed to rename '{old_name if 'old_name' in locals() else 'Unknown File'}': {e}\nContinuing with other files...")
+
+        await reply.edit(f"Rename process completed. {renamed_count} files renamed.")
 
     except Exception as e:
-        LOGGER.error(f"Get info failed: {str(e)}")
-        await message.reply(f"Get info failed: {str(e)}")
+        LOGGER.error(f"Rename failed: {str(e)}")
+        await message.reply(f"Rename failed: {str(e)}")
+
+
+async def get_file_list_process(client, message):
+    """Lists files in the Mega account."""
+    if not app.mega_session:
+        await message.reply("You must be logged in to Mega. Use /login first.")
+        return
+
+    try:
+        files = app.mega.get_files()
+        file_list = ""
+        for file_id, file_info in files.items():
+            file_name = file_info['a']['n'] if 'a' in file_info and 'n' in file_info['a'] else "Unknown Filename"
+            file_list += f"- {file_name}\n"
+        await message.reply(f"Files in your Mega account:\n{file_list}")
+    except Exception as e:
+        LOGGER.error(f"Failed to get file list: {e}")
+        await message.reply(f"Failed to get file list: {e}")
+
+
+async def download_file_process(client, message):
+    if not app.mega_session:
+        await message.reply("You must be logged in to Mega. Use /login first.")
+        return
+    try:
+        args = message.text.split()
+        if len(args) != 2:
+            return await message.reply("Format: /download <file_name>")
+        file_name = args[1]
+        files = app.mega.get_files()
+        for file_id, file_info in files.items():
+            if file_info['a']['n'] == file_name:
+                file_url = app.mega.get_download_link(file_id)
+                await message.reply(f"Download Link for {file_name}:\n{file_url}")
+                return
+        await message.reply(f"File '{file_name}' not found.")
+
+    except Exception as e:
+        LOGGER.error(f"Download process failed: {e}")
+        await message.reply(f"Download process failed: {e}")
+
 
 
 # Health check server (optional)
-# ... (health check server code remains the same)
+health_app = web.Application()
+health_app.router.add_get("/health", lambda request: web.Response(text="OK", status=200))
+
+
+def start_health_server():
+    runner = web.AppRunner(health_app)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(runner.setup())
+    site = web.TCPSite(runner, host="0.0.0.0", port=8080)
+    loop.run_until_complete(site.start())
+    LOGGER.info("Health check server is running...")
+    loop.run_forever()
+
+
+threading.Thread(target=start_health_server, daemon=True).start()
 
 # Command handlers
 app.add_handler(MessageHandler(login_process, filters.command("login")))
 app.add_handler(MessageHandler(start_process, filters.command("start")))
 app.add_handler(MessageHandler(rename_process, filters.command("rename")))
-app.add_handler(MessageHandler(getinfo_process, filters.command("getinfo")))
+app.add_handler(MessageHandler(get_file_list_process, filters.command("list")))
+app.add_handler(MessageHandler(download_file_process, filters.command("download")))
 
 # Run the bot
 LOGGER.info("Bot is running...")
 app.run()
+
