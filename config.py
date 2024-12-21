@@ -14,7 +14,7 @@ MEGA_CREDENTIALS = {
 # Admin user ID
 ADMIN_USER_ID = ["891959176", "7597122443"] # Add your user ID here
 
- ADMINS = ADMIN_USER_ID
+ADMINS = ADMIN_USER_ID
 
 # MongoDB connection string
 MONGO_URI = "mongodb+srv://suryabhai991100:pPmTrc0DoyPsEcmn@cluster0.xpua4.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
