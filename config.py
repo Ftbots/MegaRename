@@ -4,6 +4,7 @@ import os
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
+
 # MEGA credentials
 MEGA_CREDENTIALS = {
     "email": os.getenv("MEGA_EMAIL"),
@@ -11,9 +12,10 @@ MEGA_CREDENTIALS = {
 }
 
 # Admin user ID
-ADMIN_USER_ID = 891959176  # Your Telegram user ID
+ADMINS = [891959176, YOUR_TELEGRAM_USER_ID] # Add your user ID here
 
 # MongoDB connection string
 MONGO_URI = "mongodb+srv://suryabhai991100:pPmTrc0DoyPsEcmn@cluster0.xpua4.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-# Force Join Channel ID
-FORCE_JOIN_CHANNEL = -1002320532990
+
+# Force Subscribe Channel
+FORCE_SUB_CHANNEL = -1002320532990 # Your private channel ID
