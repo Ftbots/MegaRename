@@ -202,15 +202,14 @@ def start_health_server():
 threading.Thread(target=start_health_server, daemon=True).start()
 
 # Command handlers
-app.add_handler(MessageHandler(restart_process, filters.command("restart")))
-app.add_handler(MessageHandler(login_process, filters.command("login")))
-app.add_handler(MessageHandler(start_process, filters.command("start")))
-app.add_handler(MessageHandler(rename_process, filters.command("rename")))
-app.add_handler(MessageHandler(stats_process, filters.command("stats")))
-app.add_handler(MessageHandler(users_process, filters.command("users")))
-app.add_handler(MessageHandler(broadcast_process, filters.command("broadcast")))
-app.add_handler(MessageHandler(ping_process, filters.command("ping"))) # Added ping handler
-
+app.add_handler(MessageHandler(restart_process, filters.command("restart") & subscribed))
+app.add_handler(MessageHandler(login_process, filters.command("login") & subscribed))
+app.add_handler(MessageHandler(start_process, filters.command("start") & subscribed))
+app.add_handler(MessageHandler(rename_process, filters.command("rename") & subscribed))
+app.add_handler(MessageHandler(stats_process, filters.command("stats") & subscribed))
+app.add_handler(MessageHandler(users_process, filters.command("users") & subscribed))
+app.add_handler(MessageHandler(broadcast_process, filters.command("broadcast") & subscribed))
+app.add_handler(MessageHandler(ping_process, filters.command("ping") & subscribed))
 # Run the bot
 LOGGER.info("Bot is running...")
 app.run()
