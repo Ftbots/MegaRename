@@ -16,6 +16,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import UserNotParticipant
 from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMIN_USER_ID, MONGO_URI, FORCE_JOIN_CHANNEL
 
+print(f"FORCE_JOIN_CHANNEL from config.py: {FORCE_JOIN_CHANNEL}")
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logging.getLogger("pyrogram").setLevel(logging.ERROR)
