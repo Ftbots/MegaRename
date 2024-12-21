@@ -1,4 +1,5 @@
 import os
+import os
 import re
 import asyncio
 import logging
@@ -15,6 +16,7 @@ from pyrogram.filters import command, private
 from pyrogram.handlers import MessageHandler
 from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, MONGO_URI, FORCE_SUB_CHANNEL, ADMINS
 from helper_func import subscribed
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logging.getLogger("pyrogram").setLevel(logging.ERROR)
@@ -29,12 +31,11 @@ app.start_time = time.time()
 # Initialize MongoDB connection
 try:
     mongo_client = pymongo.MongoClient(MONGO_URI)
-    db = mongo_client["your_database_name"]  # Replace "your_database_name" with your database name. If it doesn't exist, it will be created.
+    db = mongo_client["your_database_name"]
     users_collection = db["users"]
 except pymongo.errors.ConnectionFailure as e:
     LOGGER.error(f"MongoDB connection failed: {e}")
     exit(1)
-
 
 async def add_user_to_db(user_id):
     try:
@@ -115,7 +116,7 @@ async def stats_process(client, message):
 
 async def restart_process(client, message):
     """Restart the bot (only for the admin)."""
-    if message.from_user.id == ADMINS:
+    if message.from_user.id in ADMINS:  # Correct comparison
         await message.reply("Restarting...")
         LOGGER.info("Bot restarting...")
         os._exit(0)
@@ -125,7 +126,7 @@ async def restart_process(client, message):
 
 async def users_process(client, message):
     """Show the total number of users (only for the admin)."""
-    if message.from_user.id == ADMINS:
+    if message.from_user.id in ADMINS:  # Correct comparison
         try:
             total_users = users_collection.count_documents({})
             await message.reply(f"Total users: {total_users}")
@@ -134,7 +135,6 @@ async def users_process(client, message):
             await message.reply(f"Error getting user count: {str(e)}")
     else:
         await message.reply("You are not authorized to use this command.")
-
 
 # Updated Broadcast Process
 async def broadcast_process(client, message):
