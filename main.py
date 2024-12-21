@@ -1,3 +1,4 @@
+
 import os
 import re
 import asyncio
@@ -7,45 +8,24 @@ import time
 from datetime import datetime
 from aiohttp import web
 import pymongo
+
+import aiohttp
+from mega import Mega
 from pyrogram import Client, filters
 from pyrogram.filters import command, private
 from pyrogram.handlers import MessageHandler
-from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMIN_USER_ID, MONGO_URI, LOG_CHANNEL_ID  # Add LOG_CHANNEL_ID
+from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMIN_USER_ID, MONGO_URI
 
-
-# Configure logging to send messages to a private Telegram channel
-
-LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID"))  # Add this line and set LOG_CHANNEL_ID in config.py
-if LOG_CHANNEL_ID:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", handlers=[TelegramLogsHandler(LOG_CHANNEL_ID)])
-else:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")  # Fallback if LOG_CHANNEL_ID not set
-
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logging.getLogger("pyrogram").setLevel(logging.ERROR)
 LOGGER = logging.getLogger(__name__)
-
-# Custom handler for sending logs to Telegram
-class TelegramLogsHandler(logging.Handler):
-    def __init__(self, channel_id, app):
-        super().__init__()
-        self.channel_id = channel_id
-        self.app = app
-
-    def emit(self, record):
-        try:
-            log_entry = self.format(record)
-            asyncio.run(self.app.send_message(chat_id=self.channel_id, text=log_entry))
-        except Exception as e:
-            print(f"Error sending log message to Telegram: {e}")
-
 
 # Initialize the bot and store start time
 app = Client("mega_rename_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
 app.mega = Mega()
 app.mega_session = None
 app.start_time = time.time()
-app.telegram_logs_handler = TelegramLogsHandler(LOG_CHANNEL_ID, app)  # Adding handler to app
-
 
 # Initialize MongoDB connection
 try:
@@ -65,14 +45,11 @@ async def add_user_to_db(user_id):
 
 
 async def start_process(client, message):
-    """Respond to the /start command and add user to DB."""
     await add_user_to_db(message.from_user.id)
-    LOGGER.info(f"New user: Name={message.from_user.first_name} {message.from_user.last_name if message.from_user.last_name else ''}, ID={message.from_user.id}, Username={message.from_user.username if message.from_user.username else ''}")
     await message.reply("Welcome to Mega Rename Bot!\nUse /login to log in to your Mega account.")
 
 
 async def login_process(client, message):
-    """Handle user login to Mega account."""
     try:
         args = message.text.split()
         if len(args) != 3:
@@ -92,7 +69,7 @@ async def rename_process(client, message):
     """Rename files, preserving file extensions, with improved error handling and progress update."""
     if not app.mega_session:
         await message.reply("You must be logged in to Mega. Use /login first.")
-        return
+        return  # This stops further execution if not logged in
 
     try:
         args = message.text.split()
@@ -103,10 +80,7 @@ async def rename_process(client, message):
         files = app.mega.get_files()
         total_files = len(files)
         renamed_count = 0
-        
-        # Initial message
-        initial_message = await message.reply(f"Renaming files... 0/{total_files}") 
-        last_message = ""
+        reply = await message.reply(f"Renaming files... 0/{total_files}")
 
         for file_id, file_info in files.items():
             try:
@@ -116,20 +90,13 @@ async def rename_process(client, message):
 
                 app.mega.rename((file_id, file_info), sanitized_new_name)
                 renamed_count += 1
-                current_message = f"Renaming files... {renamed_count}/{total_files}"
-                if current_message != last_message:
-                    await initial_message.edit(current_message)
-                    last_message = current_message
+                await reply.edit(f"Renaming files... {renamed_count}/{total_files}")
                 LOGGER.info(f"Renamed '{old_name}' to '{sanitized_new_name}'")
             except Exception as e:
                 LOGGER.error(f"Failed to rename file: {e}")
-                current_message = f"Failed to rename a file. Continuing... {renamed_count}/{total_files}"
-                if current_message != last_message:
-                    await initial_message.edit(current_message)
-                    last_message = current_message
+                await reply.edit(f"Failed to rename file. Continuing...")
 
-
-        await initial_message.edit(f"Rename process completed. {renamed_count} files renamed.")
+        await reply.edit(f"Rename process completed. {renamed_count} files renamed.")
 
     except Exception as e:
         LOGGER.error(f"Rename failed: {str(e)}")
@@ -137,7 +104,6 @@ async def rename_process(client, message):
 
 
 async def stats_process(client, message):
-    """Show bot uptime."""
     uptime_seconds = int(time.time() - app.start_time)
     uptime_days = uptime_seconds // (24 * 3600)
     uptime_hours = (uptime_seconds % (24 * 3600)) // 3600
@@ -146,7 +112,6 @@ async def stats_process(client, message):
 
 
 async def restart_process(client, message):
-    """Restart the bot (only for the admin)."""
     if message.from_user.id == ADMIN_USER_ID:
         await message.reply("Restarting...")
         LOGGER.info("Bot restarting...")
@@ -156,7 +121,6 @@ async def restart_process(client, message):
 
 
 async def users_process(client, message):
-    """Show the total number of users (only for the admin)."""
     if message.from_user.id == ADMIN_USER_ID:
         try:
             total_users = users_collection.count_documents({})
@@ -168,9 +132,7 @@ async def users_process(client, message):
         await message.reply("You are not authorized to use this command.")
 
 
-# Updated Broadcast Process
 async def broadcast_process(client, message):
-    """Broadcast a message to all users (only for admin)."""
     if message.from_user.id == ADMIN_USER_ID:
         try:
             args = message.text.split(maxsplit=1)
@@ -178,8 +140,6 @@ async def broadcast_process(client, message):
                 return await message.reply("Usage: /broadcast <message>")
 
             broadcast_message = args[1]
-
-            # Fetch all user IDs synchronously
             user_ids = [user["user_id"] for user in users_collection.find({}, {"user_id": 1, "_id": 0})]
 
             sent_count = 0
@@ -194,7 +154,7 @@ async def broadcast_process(client, message):
                     LOGGER.error(f"Failed to send message to {user_id}: {e}")
                     failed_count += 1
 
-            tasks = [send_to_user(user_id) for user_id in user_ids]  # Use the list of user IDs directly
+            tasks = [send_to_user(user_id) for user_id in user_ids]
             await asyncio.gather(*tasks)
 
             await message.reply(f"Broadcast complete. Sent to {sent_count} users. Failed to send to {failed_count} users.")
@@ -207,15 +167,13 @@ async def broadcast_process(client, message):
 
 
 async def ping_process(client, message):
-    """Respond to the /ping command with ping time."""
     start_time = time.time()
     await message.reply("Pong!")
     end_time = time.time()
-    ping_time = (end_time - start_time) * 1000  # in milliseconds
+    ping_time = (end_time - start_time) * 1000
     await message.reply(f"Ping: {ping_time:.2f}ms")
 
 
-# Health check server (optional)
 health_app = web.Application()
 health_app.router.add_get("/health", lambda request: web.Response(text="OK", status=200))
 
@@ -233,7 +191,6 @@ def start_health_server():
 
 threading.Thread(target=start_health_server, daemon=True).start()
 
-# Command handlers
 app.add_handler(MessageHandler(restart_process, filters.command("restart")))
 app.add_handler(MessageHandler(login_process, filters.command("login")))
 app.add_handler(MessageHandler(start_process, filters.command("start")))
@@ -241,8 +198,8 @@ app.add_handler(MessageHandler(rename_process, filters.command("rename")))
 app.add_handler(MessageHandler(stats_process, filters.command("stats")))
 app.add_handler(MessageHandler(users_process, filters.command("users")))
 app.add_handler(MessageHandler(broadcast_process, filters.command("broadcast")))
-app.add_handler(MessageHandler(ping_process, filters.command("ping")))  # Added ping handler
+app.add_handler(MessageHandler(ping_process, filters.command("ping")))
 
-# Run the bot
 LOGGER.info("Bot is running...")
 app.run()
+            
