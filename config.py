@@ -12,7 +12,7 @@ MEGA_CREDENTIALS = {
 }
 
 # Admin user ID
-ADMINS = [891959176, YOUR_TELEGRAM_USER_ID] # Add your user ID here
+ADMINS = 891959176 # Add your user ID here
 
 # MongoDB connection string
 MONGO_URI = "mongodb+srv://suryabhai991100:pPmTrc0DoyPsEcmn@cluster0.xpua4.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
