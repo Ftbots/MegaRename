@@ -221,17 +221,18 @@ def start_health_server():
 
 threading.Thread(target=start_health_server, daemon=True).start()
 
-# Command handlers
-app.add_handler(MessageHandler(restart_process, filters.command("restart") & filters.user(ADMIN_USER_ID)))
-app.add_handler(MessageHandler(login_process, filters.command("login")))
-app.add_handler(MessageHandler(start_process, filters.command("start")))
-app.add_handler(MessageHandler(rename_process, filters.command("rename")))
-app.add_handler(MessageHandler(stats_process, filters.command("stats")))
-app.add_handler(MessageHandler(users_process, filters.command("users") & filters.user(ADMIN_USER_ID)))
-app.add_handler(MessageHandler(broadcast_process, filters.command("broadcast") & filters.user(ADMIN_USER_ID)))
-app.add_handler(MessageHandler(ping_process, filters.command("ping")))
+# Handler registration - UPDATED FOR NEW PYROGRAM
+app.add_handler(app.on_message(restart_process, filters.command("restart") & filters.user(ADMIN_USER_ID)))
+app.add_handler(app.on_message(login_process, filters.command("login")))
+app.add_handler(app.on_message(start_process, filters.command("start")))
+app.add_handler(app.on_message(rename_process, filters.command("rename")))
+app.add_handler(app.on_message(stats_process, filters.command("stats")))
+app.add_handler(app.on_message(users_process, filters.command("users") & filters.user(ADMIN_USER_ID)))
+app.add_handler(app.on_message(broadcast_process, filters.command("broadcast") & filters.user(ADMIN_USER_ID)))
+app.add_handler(app.on_message(ping_process, filters.command("ping")))
 
 
 # Run the bot
 LOGGER.info("Bot is running...")
 app.run()
+        
