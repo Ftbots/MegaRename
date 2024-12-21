@@ -4,7 +4,7 @@ import os
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
-LOG_CHANNEL_ID = os.getenv("-1002496124040") 
+
 
 # MEGA credentials
 MEGA_CREDENTIALS = {
