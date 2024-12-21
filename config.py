@@ -12,7 +12,7 @@ MEGA_CREDENTIALS = {
 }
 
 # Admin user ID
-ADMIN_USER_ID = ["891959176", "7597122443"] # Add your user ID here
+ADMIN_USER_ID = 7597122443 # Add your user ID here
 
 ADMINS = ADMIN_USER_ID
 
