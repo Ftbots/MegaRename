@@ -1,9 +1,9 @@
 import os
 
 # Correct way to get environment variables
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-API_ID = os.getenv("API_ID")
-API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "7658008644:AAGtekRQRLwbu9b-bW6mJ2-w1BZGVeHJVDE")
+API_ID = os.getenv("API_ID", "24994752")
+API_HASH = os.getenv("API_HASH", "1c9b10f27f4ab2811ed4f102cc005837")
 
 # MEGA credentials
 MEGA_CREDENTIALS = {
