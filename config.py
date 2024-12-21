@@ -19,3 +19,5 @@ MONGO_URI = "mongodb+srv://suryabhai991100:pPmTrc0DoyPsEcmn@cluster0.xpua4.mongo
 
 # Force Subscribe Channel
 FORCE_SUB_CHANNEL = -1002320532990 # Your private channel ID
+
+FSUB_TXT = "<pre>Hello 👋, {first}</pre>\n\n<i>You need to join my Updates Channel to use me.</i>\n\n"
