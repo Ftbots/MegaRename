@@ -1,4 +1,3 @@
-
 import os
 import re
 import asyncio
@@ -14,7 +13,7 @@ from mega import Mega
 from pyrogram import Client, filters
 from pyrogram.filters import command, private
 from pyrogram.handlers import MessageHandler
-from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMIN_USER_ID, MONGO_URI
+from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMIN_USER_ID, MONGO_URI, FORCE_JOIN_CHANNEL
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -44,11 +43,35 @@ async def add_user_to_db(user_id):
         LOGGER.error(f"Error adding user to MongoDB: {e}")
 
 
+async def is_user_in_channel(user_id, channel_id):
+    """Checks if a user is a member of the specified channel."""
+    try:
+        member = await app.get_chat_member(chat_id=channel_id, user_id=user_id)
+        return member.status not in ["left", "kicked"]  # Check for left or kicked status
+    except Exception as e:
+        LOGGER.error(f"Error checking channel membership: {e}")
+        return False
+
+
 async def start_process(client, message):
     await add_user_to_db(message.from_user.id)
-    await message.reply("Welcome to Mega Rename Bot!\nUse /login to log in to your Mega account.")
+    if await is_user_in_channel(message.from_user.id, FORCE_JOIN_CHANNEL):
+        await message.reply("Welcome to Mega Rename Bot! Use /login to log in to your Mega account.")
+    else:
+        await message.reply(f"Please join my channel first: Join Channel", parse_mode="HTML")
 
 
+# Add this decorator to your command handlers
+def require_channel_membership(func):
+    async def wrapper(client, message):
+        if await is_user_in_channel(message.from_user.id, FORCE_JOIN_CHANNEL):
+            await func(client, message)
+        else:
+            await message.reply(f"Please join my channel first: Join Channel", parse_mode="HTML")
+    return wrapper
+
+
+@require_channel_membership
 async def login_process(client, message):
     try:
         args = message.text.split()
@@ -65,11 +88,12 @@ async def login_process(client, message):
         await message.reply(f"Login failed: {str(e)}")
 
 
+@require_channel_membership
 async def rename_process(client, message):
     """Rename files, preserving file extensions, with improved error handling and progress update."""
     if not app.mega_session:
         await message.reply("You must be logged in to Mega. Use /login first.")
-        return  # This stops further execution if not logged in
+        return
 
     try:
         args = message.text.split()
@@ -103,6 +127,7 @@ async def rename_process(client, message):
         await message.reply(f"Rename failed: {str(e)}")
 
 
+@require_channel_membership
 async def stats_process(client, message):
     uptime_seconds = int(time.time() - app.start_time)
     uptime_days = uptime_seconds // (24 * 3600)
@@ -111,95 +136,16 @@ async def stats_process(client, message):
     await message.reply(f"Bot uptime: {uptime_days} days, {uptime_hours} hours, {uptime_minutes} minutes")
 
 
-async def restart_process(client, message):
-    if message.from_user.id == ADMIN_USER_ID:
-        await message.reply("Restarting...")
-        LOGGER.info("Bot restarting...")
-        os._exit(0)
-    else:
-        await message.reply("You are not authorized to restart the bot.")
-
-
-async def users_process(client, message):
-    if message.from_user.id == ADMIN_USER_ID:
-        try:
-            total_users = users_collection.count_documents({})
-            await message.reply(f"Total users: {total_users}")
-        except Exception as e:
-            LOGGER.error(f"Error getting user count: {str(e)}")
-            await message.reply(f"Error getting user count: {str(e)}")
-    else:
-        await message.reply("You are not authorized to use this command.")
-
-
-async def broadcast_process(client, message):
-    if message.from_user.id == ADMIN_USER_ID:
-        try:
-            args = message.text.split(maxsplit=1)
-            if len(args) < 2:
-                return await message.reply("Usage: /broadcast <message>")
-
-            broadcast_message = args[1]
-            user_ids = [user["user_id"] for user in users_collection.find({}, {"user_id": 1, "_id": 0})]
-
-            sent_count = 0
-            failed_count = 0
-
-            async def send_to_user(user_id):
-                nonlocal sent_count, failed_count
-                try:
-                    await app.send_message(chat_id=user_id, text=broadcast_message)
-                    sent_count += 1
-                except Exception as e:
-                    LOGGER.error(f"Failed to send message to {user_id}: {e}")
-                    failed_count += 1
-
-            tasks = [send_to_user(user_id) for user_id in user_ids]
-            await asyncio.gather(*tasks)
-
-            await message.reply(f"Broadcast complete. Sent to {sent_count} users. Failed to send to {failed_count} users.")
-
-        except Exception as e:
-            LOGGER.error(f"Broadcast failed: {str(e)}")
-            await message.reply(f"Broadcast failed: {str(e)}")
-    else:
-        await message.reply("You are not authorized to use this command.")
-
-
-async def ping_process(client, message):
-    start_time = time.time()
-    await message.reply("Pong!")
-    end_time = time.time()
-    ping_time = (end_time - start_time) * 1000
-    await message.reply(f"Ping: {ping_time:.2f}ms")
-
-
-health_app = web.Application()
-health_app.router.add_get("/health", lambda request: web.Response(text="OK", status=200))
-
-
-def start_health_server():
-    runner = web.AppRunner(health_app)
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(runner.setup())
-    site = web.TCPSite(runner, host="0.0.0.0", port=8080)
-    loop.run_until_complete(site.start())
-    LOGGER.info("Health check server is running...")
-    loop.run_forever()
-
-
-threading.Thread(target=start_health_server, daemon=True).start()
-
-app.add_handler(MessageHandler(restart_process, filters.command("restart")))
+# Updated Handlers
+app.add_handler(MessageHandler(restart_process, filters.command("restart") & filters.user(ADMIN_USER_ID)))  # Admin only
 app.add_handler(MessageHandler(login_process, filters.command("login")))
 app.add_handler(MessageHandler(start_process, filters.command("start")))
 app.add_handler(MessageHandler(rename_process, filters.command("rename")))
 app.add_handler(MessageHandler(stats_process, filters.command("stats")))
-app.add_handler(MessageHandler(users_process, filters.command("users")))
-app.add_handler(MessageHandler(broadcast_process, filters.command("broadcast")))
+app.add_handler(MessageHandler(users_process, filters.command("users") & filters.user(ADMIN_USER_ID)))  # Admin only
+app.add_handler(MessageHandler(broadcast_process, filters.command("broadcast") & filters.user(ADMIN_USER_ID)))  # Admin only
 app.add_handler(MessageHandler(ping_process, filters.command("ping")))
 
+# Run the bot
 LOGGER.info("Bot is running...")
 app.run()
-            
