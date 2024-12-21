@@ -139,7 +139,7 @@ async def users_process(client, message):
 # Updated Broadcast Process
 async def broadcast_process(client, message):
     """Broadcast a message to all users (only for admin)."""
-    if message.from_user.id == ADMINS:
+    if message.from_user.id in ADMINS:  # Correct comparison
         try:
             args = message.text.split(maxsplit=1)
             if len(args) < 2:
@@ -159,15 +159,6 @@ async def broadcast_process(client, message):
                     await app.send_message(chat_id=user_id, text=broadcast_message)
                     sent_count += 1
                 except Exception as e:
-                    LOGGER.error(f"Failed to send message to {user_id}: {e}")
-                    failed_count += 1
-
-            tasks = [send_to_user(user_id) for user_id in user_ids]  # Use the list of user IDs directly
-            await asyncio.gather(*tasks)
-
-            await message.reply(f"Broadcast complete. Sent to {sent_count} users. Failed to send to {failed_count} users.")
-
-        except Exception as e:
             LOGGER.error(f"Broadcast failed: {str(e)}")
             await message.reply(f"Broadcast failed: {str(e)}")
     else:
