@@ -1,4 +1,3 @@
-
 import os
 import re
 import asyncio
@@ -58,12 +57,15 @@ async def start_process(client, message):
     if await is_user_in_channel(message.from_user.id, FORCE_JOIN_CHANNEL):
         await message.reply("Welcome to Mega Rename Bot! Use /login to log in to your Mega account.")
     else:
-        await message.reply(f"Please join my channel first: [Join Channel](https://t.me/c/{str(FORCE_JOIN_CHANNEL)[3:]})", parse_mode="Markdown")
+        # Corrected Markdown formatting
+        join_link = f"[Join Channel](https://t.me/c/{str(FORCE_JOIN_CHANNEL)[3:]})"
+        await message.reply(f"Please join my channel first: {join_link}", parse_mode="Markdown")
 
 
 async def enforce_channel_membership(client, message):
     if not await is_user_in_channel(message.from_user.id, FORCE_JOIN_CHANNEL):
-        await message.reply(f"Please join my channel first: [Join Channel](https://t.me/c/{str(FORCE_JOIN_CHANNEL)[3:]})", parse_mode="Markdown")
+        join_link = f"[Join Channel](https://t.me/c/{str(FORCE_JOIN_CHANNEL)[3:]})"
+        await message.reply(f"Please join my channel first: {join_link}", parse_mode="Markdown")
         return True
     return False
 
@@ -122,7 +124,6 @@ async def rename_process(client, message):
     except Exception as e:
         LOGGER.error(f"Rename failed: {str(e)}")
         await message.reply(f"Rename failed: {str(e)}")
-
 
 
 async def stats_process(client, message):
@@ -229,4 +230,3 @@ app.add_handler(MessageHandler(restart_process, filters.command("restart") & fil
 # Run the bot
 LOGGER.info("Bot is running...")
 app.run()
-                    
