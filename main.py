@@ -221,7 +221,7 @@ async def not_joined(client: Client, message: Message):
             InlineKeyboardButton(text="ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ", url="https://t.me/+Hafg8RVH0yc4M2Vl"),
         ]
     ]
-    await message.text(
+    await message.reply(
         text = FSUB_TXT.format(
                 first = message.from_user.first_name,
                 last = message.from_user.last_name,
