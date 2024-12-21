@@ -218,7 +218,7 @@ app.add_handler(MessageHandler(ping_process, filters.command("ping"))) # Added p
 async def not_joined(client: Client, message: Message):
     buttons = [
         [
-            InlineKeyboardButton(text="ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ", url=client.invitelink),
+            InlineKeyboardButton(text="ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ", url="https://t.me/+Hafg8RVH0yc4M2Vl"),
         ]
     ]
     await message.text(
@@ -230,9 +230,10 @@ async def not_joined(client: Client, message: Message):
                 id = message.from_user.id
             ),
         reply_markup = InlineKeyboardMarkup(buttons),
+        quote=True
 
     )
     
 # Run the bot
-LOGGER.info("Bot is running...")
+LOGGER.info("Bot is running... Fsub Added By Obito 💀")
 app.run()
