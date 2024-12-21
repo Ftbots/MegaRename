@@ -1,4 +1,3 @@
-
 import os
 import re
 import asyncio
@@ -12,11 +11,10 @@ import pymongo
 import aiohttp
 from mega import Mega
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from pyrogram.errors import UserNotParticipant
-from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMIN_USER_ID, MONGO_URI, FORCE_JOIN_CHANNEL
+from pyrogram.filters import command, private
+from pyrogram.handlers import MessageHandler
+from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMIN_USER_ID, MONGO_URI
 
-print(f"FORCE_JOIN_CHANNEL from config.py: {FORCE_JOIN_CHANNEL}")
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logging.getLogger("pyrogram").setLevel(logging.ERROR)
@@ -31,7 +29,7 @@ app.start_time = time.time()
 # Initialize MongoDB connection
 try:
     mongo_client = pymongo.MongoClient(MONGO_URI)
-    db = mongo_client["your_database_name"]  # Replace "your_database_name" with your database name
+    db = mongo_client["your_database_name"]  # Replace "your_database_name" with your database name. If it doesn't exist, it will be created.
     users_collection = db["users"]
 except pymongo.errors.ConnectionFailure as e:
     LOGGER.error(f"MongoDB connection failed: {e}")
@@ -45,36 +43,14 @@ async def add_user_to_db(user_id):
         LOGGER.error(f"Error adding user to MongoDB: {e}")
 
 
-async def is_user_in_channel(user_id):
-    try:
-        member = await app.get_chat_member(chat_id=FORCE_JOIN_CHANNEL, user_id=user_id)
-        return member.status not in ["left", "kicked"]
-    except UserNotParticipant:
-        return False
-    except Exception as e:
-        LOGGER.error(f"Error checking channel membership: {e}")
-        return False
-
-
-async def enforce_channel_membership(client, message):
-    if not await is_user_in_channel(message.from_user.id):
-        invite_link = await app.create_chat_invite_link(chat_id=FORCE_JOIN_CHANNEL)
-        join_button = InlineKeyboardMarkup([[InlineKeyboardButton("Join Channel", url=invite_link.invite_link)]])
-        await message.reply("Please join my channel first:", reply_markup=join_button, parse_mode="HTML")
-        return True
-    return False
-
-
 async def start_process(client, message):
+    """Respond to the /start command and add user to DB."""
     await add_user_to_db(message.from_user.id)
-    if await enforce_channel_membership(client, message):
-        return
     await message.reply("Welcome to Mega Rename Bot!\nUse /login to log in to your Mega account.")
 
 
 async def login_process(client, message):
-    if await enforce_channel_membership(client, message):
-        return
+    """Handle user login to Mega account."""
     try:
         args = message.text.split()
         if len(args) != 3:
@@ -91,8 +67,7 @@ async def login_process(client, message):
 
 
 async def rename_process(client, message):
-    if await enforce_channel_membership(client, message):
-        return
+    """Rename files, preserving file extensions, with improved error handling and progress update."""
     if not app.mega_session:
         await message.reply("You must be logged in to Mega. Use /login first.")
         return
@@ -130,8 +105,7 @@ async def rename_process(client, message):
 
 
 async def stats_process(client, message):
-    if await enforce_channel_membership(client, message):
-        return
+    """Show bot uptime."""
     uptime_seconds = int(time.time() - app.start_time)
     uptime_days = uptime_seconds // (24 * 3600)
     uptime_hours = (uptime_seconds % (24 * 3600)) // 3600
@@ -140,6 +114,7 @@ async def stats_process(client, message):
 
 
 async def restart_process(client, message):
+    """Restart the bot (only for the admin)."""
     if message.from_user.id == ADMIN_USER_ID:
         await message.reply("Restarting...")
         LOGGER.info("Bot restarting...")
@@ -149,6 +124,7 @@ async def restart_process(client, message):
 
 
 async def users_process(client, message):
+    """Show the total number of users (only for the admin)."""
     if message.from_user.id == ADMIN_USER_ID:
         try:
             total_users = users_collection.count_documents({})
@@ -160,7 +136,9 @@ async def users_process(client, message):
         await message.reply("You are not authorized to use this command.")
 
 
+# Updated Broadcast Process
 async def broadcast_process(client, message):
+    """Broadcast a message to all users (only for admin)."""
     if message.from_user.id == ADMIN_USER_ID:
         try:
             args = message.text.split(maxsplit=1)
@@ -168,6 +146,8 @@ async def broadcast_process(client, message):
                 return await message.reply("Usage: /broadcast <message>")
 
             broadcast_message = args[1]
+
+            # Fetch all user IDs synchronously
             user_ids = [user["user_id"] for user in users_collection.find({}, {"user_id": 1, "_id": 0})]
 
             sent_count = 0
@@ -182,7 +162,7 @@ async def broadcast_process(client, message):
                     LOGGER.error(f"Failed to send message to {user_id}: {e}")
                     failed_count += 1
 
-            tasks = [send_to_user(user_id) for user_id in user_ids]
+            tasks = [send_to_user(user_id) for user_id in user_ids]  # Use the list of user IDs directly
             await asyncio.gather(*tasks)
 
             await message.reply(f"Broadcast complete. Sent to {sent_count} users. Failed to send to {failed_count} users.")
@@ -195,16 +175,15 @@ async def broadcast_process(client, message):
 
 
 async def ping_process(client, message):
-    if await enforce_channel_membership(client, message):
-        return
+    """Respond to the /ping command with ping time."""
     start_time = time.time()
     await message.reply("Pong!")
     end_time = time.time()
-    ping_time = (end_time - start_time) * 1000
+    ping_time = (end_time - start_time) * 1000  # in milliseconds
     await message.reply(f"Ping: {ping_time:.2f}ms")
 
 
-
+# Health check server (optional)
 health_app = web.Application()
 health_app.router.add_get("/health", lambda request: web.Response(text="OK", status=200))
 
@@ -222,18 +201,16 @@ def start_health_server():
 
 threading.Thread(target=start_health_server, daemon=True).start()
 
-# Handler registration - UPDATED FOR NEW PYROGRAM
-app.add_handler(app.on_message(restart_process, filters.command("restart") & filters.user(ADMIN_USER_ID)))
-app.add_handler(app.on_message(login_process, filters.command("login")))
-app.add_handler(app.on_message(start_process, filters.command("start")))
-app.add_handler(app.on_message(rename_process, filters.command("rename")))
-app.add_handler(app.on_message(stats_process, filters.command("stats")))
-app.add_handler(app.on_message(users_process, filters.command("users") & filters.user(ADMIN_USER_ID)))
-app.add_handler(app.on_message(broadcast_process, filters.command("broadcast") & filters.user(ADMIN_USER_ID)))
-app.add_handler(app.on_message(ping_process, filters.command("ping")))
-
+# Command handlers
+app.add_handler(MessageHandler(restart_process, filters.command("restart")))
+app.add_handler(MessageHandler(login_process, filters.command("login")))
+app.add_handler(MessageHandler(start_process, filters.command("start")))
+app.add_handler(MessageHandler(rename_process, filters.command("rename")))
+app.add_handler(MessageHandler(stats_process, filters.command("stats")))
+app.add_handler(MessageHandler(users_process, filters.command("users")))
+app.add_handler(MessageHandler(broadcast_process, filters.command("broadcast")))
+app.add_handler(MessageHandler(ping_process, filters.command("ping"))) # Added ping handler
 
 # Run the bot
 LOGGER.info("Bot is running...")
 app.run()
-        
