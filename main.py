@@ -11,7 +11,7 @@ import pymongo
 import aiohttp
 from mega import Mega
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.filters import command, private
 from helper_func import subscribed
 from pyrogram.handlers import MessageHandler
