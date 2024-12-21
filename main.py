@@ -13,8 +13,8 @@ from mega import Mega
 from pyrogram import Client, filters
 from pyrogram.filters import command, private
 from pyrogram.handlers import MessageHandler
-from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMINS, MONGO_URI, FORCE_SUB_CHANNEL, ADMINS
-from helper_func import subscribed # Import the subscribed filter
+from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, MONGO_URI, FORCE_SUB_CHANNEL, ADMINS
+from helper_func import subscribed
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logging.getLogger("pyrogram").setLevel(logging.ERROR)
@@ -115,7 +115,7 @@ async def stats_process(client, message):
 
 async def restart_process(client, message):
     """Restart the bot (only for the admin)."""
-    if message.from_user.id == ADMIN_USER_ID:
+    if message.from_user.id == ADMINS:
         await message.reply("Restarting...")
         LOGGER.info("Bot restarting...")
         os._exit(0)
@@ -125,7 +125,7 @@ async def restart_process(client, message):
 
 async def users_process(client, message):
     """Show the total number of users (only for the admin)."""
-    if message.from_user.id == ADMIN_USER_ID:
+    if message.from_user.id == ADMINS:
         try:
             total_users = users_collection.count_documents({})
             await message.reply(f"Total users: {total_users}")
@@ -139,7 +139,7 @@ async def users_process(client, message):
 # Updated Broadcast Process
 async def broadcast_process(client, message):
     """Broadcast a message to all users (only for admin)."""
-    if message.from_user.id == ADMIN_USER_ID:
+    if message.from_user.id == ADMINS:
         try:
             args = message.text.split(maxsplit=1)
             if len(args) < 2:
