@@ -11,9 +11,11 @@ import pymongo
 import aiohttp
 from mega import Mega
 from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.filters import command, private
+from helper_func import subscribed
 from pyrogram.handlers import MessageHandler
-from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMIN_USER_ID, MONGO_URI
+from config import BOT_TOKEN, API_ID, API_HASH, MEGA_CREDENTIALS, ADMIN_USER_ID, MONGO_URI, FSUB_TXT
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -203,7 +205,7 @@ threading.Thread(target=start_health_server, daemon=True).start()
 
 # Command handlers
 app.add_handler(MessageHandler(restart_process, filters.command("restart")))
-app.add_handler(MessageHandler(login_process, filters.command("login")))
+app.add_handler(MessageHandler(login_process, filters.command("login") & filters.private & subscribed))
 app.add_handler(MessageHandler(start_process, filters.command("start")))
 app.add_handler(MessageHandler(rename_process, filters.command("rename")))
 app.add_handler(MessageHandler(stats_process, filters.command("stats")))
@@ -211,6 +213,26 @@ app.add_handler(MessageHandler(users_process, filters.command("users")))
 app.add_handler(MessageHandler(broadcast_process, filters.command("broadcast")))
 app.add_handler(MessageHandler(ping_process, filters.command("ping"))) # Added ping handler
 
+
+@app.on_message(filters.command('login') & filters.private)
+async def not_joined(client: Client, message: Message):
+    buttons = [
+        [
+            InlineKeyboardButton(text="ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ", url=client.invitelink),
+        ]
+    ]
+    await message.text(
+        text = FSUB_TXT.format(
+                first = message.from_user.first_name,
+                last = message.from_user.last_name,
+                username = None if not message.from_user.username else '@' + message.from_user.username,
+                mention = message.from_user.mention,
+                id = message.from_user.id
+            ),
+        reply_markup = InlineKeyboardMarkup(buttons),
+
+    )
+    
 # Run the bot
 LOGGER.info("Bot is running...")
 app.run()
